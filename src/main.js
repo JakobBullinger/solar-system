@@ -246,6 +246,7 @@
       return follow && follow.userData.body ? follow.userData.body.key : null;
     }
   });
+  ORRERY.Challenge.init();   // a ?ch= link starts a ghost mission replay
   ORRERY.Tour.maybeOffer();
 
   // --- Render loop -------------------------------------------------------------

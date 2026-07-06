@@ -32,6 +32,7 @@ const MODULES = [
   'src/ui/tour.js',
   'src/ui/ride.js',
   'src/ui/missions.js',
+  'src/ui/challenge.js',
   'src/ui/permalink.js',
   'src/main.js'
 ];
