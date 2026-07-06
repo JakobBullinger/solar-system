@@ -425,18 +425,30 @@ ORRERY.Missions = (function () {
     render();
   }
 
-  /** Challenge links: re-fly a recorded departure burn as a ghost run. */
-  function replayBurn(key, jd, vec) {
+  /** Challenge links: re-fly a recorded run (departure + optional mid-course
+   *  burn) as a ghost. Both legs are re-validated against the mission's own
+   *  budget and deadline — a forged or corrupt link simply refuses to fly. */
+  function replayBurn(key, jd, vec, mid) {
     var m = null;
     MISSIONS.forEach(function (mi) { if (mi.key === key) m = mi; });
     if (!m) return false;
     var kms = Math.sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z) * KMS;
-    if (kms < 0.1 || kms > m.budget + 0.01) return false;   // forged or corrupt link
+    var midKms = 0;
+    if (mid) {
+      midKms = Math.sqrt(mid.vec.x * mid.vec.x + mid.vec.y * mid.vec.y +
+        mid.vec.z * mid.vec.z) * KMS;
+      if (!(mid.t > 0) || mid.t > m.limitY * 365.25 || midKms < 0.05) return false;
+    }
+    // +0.02 absorbs the link's integer micro-AU/day rounding on both legs
+    if (kms < 0.1 || kms + midKms > m.budget + 0.02) return false;
     if (ORRERY.Sandbox.active) document.getElementById('opt-sandbox').click();
     dropProbe();
     current = m;
-    // Challenge links carry the departure burn only (no mid-course leg)
-    attempt = { ghost: true, burn1: { vec: vec, kms: kms }, burn2: null, departJd: jd };
+    attempt = {
+      ghost: true, burn1: { vec: vec, kms: kms },
+      burn2: mid ? { t: mid.t, vec: mid.vec, kms: midKms } : null,
+      departJd: jd
+    };
     els.btn.setAttribute('aria-pressed', 'true');
     launch();
     return true;
@@ -460,7 +472,9 @@ ORRERY.Missions = (function () {
       ORRERY.Challenge.onFinish({
         key: current.key, won: won, stars: attempt.stars || 0, ghost: !!attempt.ghost,
         jd: attempt.launchJd, vec: attempt.burn1.vec, kms: attempt.spent,
-        midBurn: !!attempt.burn2,   // links can't carry the second leg (yet)
+        midBurn: attempt.burn2
+          ? { t: attempt.burn2.t, vec: attempt.burn2.vec, kms: attempt.burn2.kms }
+          : null,
         actions: els.hud.querySelector('.ms-actions')
       });
     }
@@ -624,6 +638,7 @@ ORRERY.Missions = (function () {
     els.hud.querySelectorAll('[data-act]').forEach(function (btn) {
       btn.addEventListener('click', function () { act(btn.dataset.act); });
     });
+    if (ORRERY.Challenge) ORRERY.Challenge.decorate(state, m, els.hud);
   }
 
   function dropProbe() {
