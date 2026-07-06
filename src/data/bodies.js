@@ -51,7 +51,7 @@ ORRERY.DATA = (function () {
       el: [0.72333566, 0.00000390, 0.00677672, -0.00004107, 3.39467605, -0.00078890,
            181.97909950, 58517.81538729, 131.60246718, 0.00268329, 76.67984255, -0.27769418],
       fact: 'Venus spins backwards, so its sun rises in the west — once every 117 Earth days.',
-      texture: 'venus'
+      texture: 'venus', atmo: '#F2DFB8', atmoI: 1.0
     },
     {
       key: 'earth', name: 'Earth', type: 'Rocky planet',
@@ -60,7 +60,7 @@ ORRERY.DATA = (function () {
       el: [1.00000261, 0.00000562, 0.01671123, -0.00004392, -0.00001531, -0.01294668,
            100.46457166, 35999.37244981, 102.93768193, 0.32327364, 0.0, 0.0],
       fact: 'The only place in the universe confirmed to host life — and the only planet not named after a god.',
-      texture: 'earth',
+      texture: 'earth', atmo: '#7DB8FF', atmoI: 0.9,
       moons: [{
         key: 'moon', name: 'The Moon', radiusKm: 1737.4, orbitDays: 27.322,
         distanceKm: 384400, color: '#C4C0BA',
@@ -74,7 +74,7 @@ ORRERY.DATA = (function () {
       el: [1.52371034, 0.00001847, 0.09339410, 0.00007882, 1.84969142, -0.00813131,
            -4.55343205, 19140.30268499, -23.94362959, 0.44441088, 49.55953891, -0.29257343],
       fact: 'Olympus Mons rises 22 km above the Martian plains — two and a half Everests, stacked.',
-      texture: 'mars'
+      texture: 'mars', atmo: '#D9A06B', atmoI: 0.35
     },
     {
       key: 'jupiter', name: 'Jupiter', type: 'Gas giant',
@@ -83,7 +83,7 @@ ORRERY.DATA = (function () {
       el: [5.20288700, -0.00011607, 0.04838624, -0.00013253, 1.30439695, -0.00183714,
            34.39644051, 3034.74612775, 14.72847983, 0.21252668, 100.47390909, 0.20469106],
       fact: 'The Great Red Spot is a storm wider than Earth that has raged for at least 190 years.',
-      texture: 'jupiter',
+      texture: 'jupiter', atmo: '#C8B090', atmoI: 0.5,
       moons: [
         {
           key: 'io', name: 'Io', radiusKm: 1821.6, orbitDays: 1.769,
@@ -114,7 +114,7 @@ ORRERY.DATA = (function () {
       el: [9.53667594, -0.00125060, 0.05386179, -0.00050991, 2.48599187, 0.00193609,
            49.95424423, 1222.49362201, 92.59887831, -0.41897216, 113.66242448, -0.28867794],
       fact: 'Saturn’s rings span 280,000 km yet average only about 10 metres thick.',
-      texture: 'saturn', hasRings: true,
+      texture: 'saturn', atmo: '#E8D5A8', atmoI: 0.5, hasRings: true,
       moons: [{
         key: 'titan', name: 'Titan', radiusKm: 2574.7, orbitDays: 15.945,
         distanceKm: 1221870, color: '#C79B5B',
@@ -128,7 +128,7 @@ ORRERY.DATA = (function () {
       el: [19.18916464, -0.00196176, 0.04725744, -0.00004397, 0.77263783, -0.00242939,
            313.23810451, 428.48202785, 170.95427630, 0.40805281, 74.01692503, 0.04240589],
       fact: 'Uranus orbits tipped on its side — each pole gets 42 straight years of sunlight, then 42 of night.',
-      texture: 'uranus', hasRings: 'faint'
+      texture: 'uranus', atmo: '#9BD4D6', atmoI: 0.55, hasRings: 'faint'
     },
     {
       key: 'neptune', name: 'Neptune', type: 'Ice giant',
@@ -137,7 +137,7 @@ ORRERY.DATA = (function () {
       el: [30.06992276, 0.00026291, 0.00859048, 0.00005105, 1.77004347, 0.00035372,
            -55.12002969, 218.45945325, 44.96476227, -0.32241464, 131.78422574, -0.00508664],
       fact: 'Winds on Neptune reach 2,100 km/h — the fastest in the solar system, on the planet farthest from the Sun.',
-      texture: 'neptune'
+      texture: 'neptune', atmo: '#6A8FE8', atmoI: 0.55
     },
     {
       key: 'pluto', name: 'Pluto', type: 'Dwarf planet',
@@ -146,7 +146,7 @@ ORRERY.DATA = (function () {
       el: [39.48211675, -0.00031596, 0.24882730, 0.00005170, 17.14001206, 0.00004818,
            238.92903833, 145.20780515, 224.06891629, -0.04062942, 110.30393684, -0.01183482],
       fact: 'Pluto and its moon Charon orbit a point in empty space between them — a true double world.',
-      texture: 'pluto'
+      texture: 'pluto', atmo: '#B0A8C0', atmoI: 0.15
     }
   ];
 

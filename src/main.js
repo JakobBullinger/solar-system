@@ -251,6 +251,10 @@
       // Axial spin (rotationHours sign encodes retrograde)
       var spins = (daysSinceEpoch * 24 / b.rotationHours) % 1;
       group.userData.mesh.rotation.y = spins * Math.PI * 2;
+      if (group.userData.clouds) {
+        // Cloud deck drifts relative to the surface
+        group.userData.clouds.rotation.y = spins * Math.PI * 2 * 0.92;
+      }
 
       // Moons: circular orbits at true relative periods
       group.userData.moons.forEach(function (m) {
@@ -260,6 +264,7 @@
       // Size mode crossfade
       var s = 1 + (group.userData.trueScale - 1) * scaleLerp.value;
       group.userData.mesh.scale.setScalar(s);
+      if (group.userData.clouds) group.userData.clouds.scale.setScalar(s);
     });
 
     // Moon visibility fades out in true-size mode (they'd be sub-pixel)
@@ -293,6 +298,7 @@
 
     ORRERY.Panel.tick(jd);
     ORRERY.Labels.update(camera, window.innerWidth, window.innerHeight);
+    ORRERY.Shaders.update(dt);
 
     renderer.render(scene, camera);
   }

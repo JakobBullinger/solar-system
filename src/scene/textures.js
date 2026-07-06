@@ -253,6 +253,53 @@ ORRERY.Textures = (function () {
     }
   };
 
+  /**
+   * Earth's night side: city lights. Reuses the day texture's noise seed so
+   * lights fall exactly on the same landmask, clustered at temperate
+   * latitudes with a fine grain so cities read as points, not haze.
+   */
+  function earthNight() {
+    var n = makeNoise(42);
+    var c = makeNoise(142);
+    return perPixel(function (u, v, lat) {
+      var m = n.fbm(u * 5, v * 2.6, 6, 5);
+      var polar = Math.abs(lat) - 68 + n.fbm(u * 9, v * 4, 3, 9) * 10;
+      if (m <= 0.52 || polar > 0) return [0, 0, 0];
+      var cluster = c.fbm(u * 20, v * 11, 4, 20);
+      var warm = clamp01(1 - Math.abs(lat) / 58);
+      var glow = clamp01((cluster - 0.56) * 5) * warm;
+      var grain = c.noise(u * 420, v * 210, 420);
+      glow *= 0.35 + 1.1 * clamp01((grain - 0.4) * 2);
+      glow = clamp01(glow);
+      return [255 * glow, 186 * glow, 105 * glow];
+    });
+  }
+
+  /** Earth's cloud deck as an alpha texture for a separate shell mesh. */
+  function earthClouds() {
+    var n = makeNoise(88);
+    var cnv = document.createElement('canvas');
+    cnv.width = W; cnv.height = H;
+    var ctx = cnv.getContext('2d');
+    var img = ctx.createImageData(W, H);
+    for (var y = 0; y < H; y++) {
+      var v = y / H;
+      for (var x = 0; x < W; x++) {
+        var u = x / W;
+        var m = n.fbm(u * 6 + n.fbm(u * 3, v * 3, 3, 3) * 1.3, v * 3.4, 5, 6);
+        var band = 0.72 + 0.28 * Math.sin(v * Math.PI * 7 + m * 4);
+        var a = clamp01((m - 0.52) * 3.2) * band;
+        var o = (y * W + x) * 4;
+        img.data[o] = 255; img.data[o + 1] = 254; img.data[o + 2] = 250;
+        img.data[o + 3] = Math.round(a * 235);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    var tex = new THREE.CanvasTexture(cnv);
+    tex.wrapS = THREE.RepeatWrapping;
+    return tex;
+  }
+
   /** Saturn's rings: radial band structure with the Cassini division. */
   function ringTexture() {
     var w = 1024, h = 16;
@@ -291,6 +338,8 @@ ORRERY.Textures = (function () {
 
   return {
     build: function (key) { return builders[key](); },
+    earthNight: earthNight,
+    earthClouds: earthClouds,
     ringTexture: ringTexture,
     glowSprite: glowSprite
   };

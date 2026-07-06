@@ -20,6 +20,7 @@ const MODULES = [
   'src/physics/almanac.js',
   'src/physics/nbody.js',
   'src/scene/textures.js',
+  'src/scene/shaders.js',
   'src/scene/environment.js',
   'src/scene/bodies3d.js',
   'src/scene/comets3d.js',

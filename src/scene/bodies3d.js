@@ -20,7 +20,7 @@ ORRERY.Bodies3D = (function () {
   function buildSun(data) {
     var group = new THREE.Group();
     var geo = new THREE.SphereGeometry(data.sceneRadius, 48, 32);
-    var mat = new THREE.MeshBasicMaterial({ map: ORRERY.Textures.build('sun') });
+    var mat = ORRERY.Shaders.sunMaterial(ORRERY.Textures.build('sun'));
     var mesh = new THREE.Mesh(geo, mat);
     group.add(mesh);
 
@@ -52,11 +52,10 @@ ORRERY.Bodies3D = (function () {
       v.fromBufferAttribute(pos, i);
       uv.setXY(i, (v.length() - inner) / (outer - inner), 0.5);
     }
-    var mat = new THREE.MeshBasicMaterial({
-      map: ORRERY.Textures.ringTexture(),
-      side: THREE.DoubleSide, transparent: true, depthWrite: false
-    });
-    if (planet.hasRings === 'faint') mat.opacity = 0.28;
+    var mat = ORRERY.Shaders.ringMaterial(
+      ORRERY.Textures.ringTexture(),
+      planet.hasRings === 'faint' ? 0.28 : 1.0
+    );
     var mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
     return mesh;
@@ -73,16 +72,37 @@ ORRERY.Bodies3D = (function () {
   function buildPlanet(data) {
     var group = new THREE.Group();
     var radius = enhancedRadius(data.radiusKm);
+    var isEarth = data.texture === 'earth';
 
     var tex = ORRERY.Textures.build(data.texture);
-    var mat = new THREE.MeshLambertMaterial({ map: tex });
+    var mat = ORRERY.Shaders.planetMaterial({
+      map: tex,
+      nightMap: isEarth ? ORRERY.Textures.earthNight() : null,
+      atmo: data.atmo,
+      atmoI: data.atmoI
+    });
     var mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 40, 28), mat);
 
     var tiltGroup = new THREE.Group();
     tiltGroup.rotation.z = -data.axialTilt * Math.PI / 180;
     tiltGroup.add(mesh);
 
-    if (data.hasRings) tiltGroup.add(buildRings(data, radius));
+    var clouds = null;
+    if (isEarth) {
+      clouds = new THREE.Mesh(
+        new THREE.SphereGeometry(radius * 1.018, 40, 28),
+        ORRERY.Shaders.cloudMaterial(ORRERY.Textures.earthClouds())
+      );
+      tiltGroup.add(clouds);
+    }
+
+    var ringCfg = null;
+    if (data.hasRings) {
+      var rings = buildRings(data, radius);
+      tiltGroup.add(rings);
+      ringCfg = { inner: radius * 1.25, outer: radius * 2.35 };
+      ORRERY.Shaders.registerRing(rings.material, mesh, radius);
+    }
 
     var moons = [];
     (data.moons || []).forEach(function (m, idx) {
@@ -110,12 +130,15 @@ ORRERY.Bodies3D = (function () {
       moons.push({ data: m, pivot: pivot, mesh: moonMesh, ring: ring, sceneRadius: mr });
     });
 
+    ORRERY.Shaders.registerPlanet(mat, mesh, moons, ringCfg);
+
     group.add(tiltGroup);
     group.userData = {
       body: data,
       mesh: mesh,
       tiltGroup: tiltGroup,
       moons: moons,
+      clouds: clouds,
       enhancedRadius: radius,
       trueScale: (data.radiusKm / ORRERY.DATA.SUN.radiusKm) * ORRERY.DATA.SUN.sceneRadius / radius
     };
