@@ -90,6 +90,7 @@ ORRERY.NBody = (function () {
       color: color,
       alive: true,
       status: 'orbiting',
+      burns: null,                 // optional [{jd, dv:{x,y,z}, done}] impulses
       minR: Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
     };
     var src = srcAt(ORRERY.TimeBar.jd, makeSrcBuffer());
@@ -149,6 +150,28 @@ ORRERY.NBody = (function () {
     }
   }
 
+  /**
+   * Advance one particle across [t0, t1], splitting the step at any pending
+   * scheduled impulse so the kick lands at its exact jd. Burns only fire
+   * while time runs forward — scrubbing back does not un-burn.
+   */
+  function advanceWithBurns(p, t0, t1, src) {
+    if (p.burns && t1 > t0) {
+      for (var b = 0; b < p.burns.length; b++) {
+        var burn = p.burns[b];
+        if (!burn.done && burn.jd > t0 && burn.jd <= t1) {
+          advance(p, burn.jd - t0, src);
+          if (!p.alive) return;
+          p.vel.x += burn.dv.x; p.vel.y += burn.dv.y; p.vel.z += burn.dv.z;
+          burn.done = true;
+          advance(p, t1 - burn.jd, src);
+          return;
+        }
+      }
+    }
+    advance(p, t1 - t0, src);
+  }
+
   /** Advance all particles from jd0 by dDays (either sign). */
   function step(jd0, dDays) {
     if (!particles.length || dDays === 0) return;
@@ -160,7 +183,9 @@ ORRERY.NBody = (function () {
     for (var s = 1; s <= n; s++) {
       srcAt(jd0 + s * h, stepSrc);
       for (var i = 0; i < particles.length; i++) {
-        if (particles[i].alive) advance(particles[i], h, stepSrc);
+        if (particles[i].alive) {
+          advanceWithBurns(particles[i], jd0 + (s - 1) * h, jd0 + s * h, stepSrc);
+        }
       }
     }
   }
@@ -194,8 +219,13 @@ ORRERY.NBody = (function () {
    * to `targetEl` (with the moment and both positions), minimum solar
    * distance, death, and final orbital energy. This is what makes aiming at
    * a planet that won't be there for another year a playable game.
+   *
+   * `burns` (optional): scheduled mid-course impulses [{t, dv:{x,y,z}}] with
+   * t in days after jd0 and dv in AU/day, sorted by t. Each is applied once,
+   * at the start of the first integration step whose window contains it.
+   * Points carry `t` (days after jd0) so the UI can map arc → time.
    */
-  function previewLive(pos, vel, jd0, steps, h, targetEl, every) {
+  function previewLive(pos, vel, jd0, steps, h, targetEl, every, burns) {
     initSources();
     var src = makeSrcBuffer();
     var ti = -1;
@@ -209,9 +239,16 @@ ORRERY.NBody = (function () {
     accel(px, py, pz, src, a);
     var out = {
       points: [], died: null, minR: 1e9, maxR: 0, endEnergy: 0,
+      minRJd: jd0, maxRJd: jd0,
       target: ti >= 0 ? { d: 1e9, jd: jd0, x: 0, y: 0, z: 0 } : null
     };
+    var burnIdx = 0;
     for (var s = 1; s <= steps; s++) {
+      if (burns && burnIdx < burns.length && burns[burnIdx].t <= (s - 1) * h) {
+        var dv = burns[burnIdx].dv;
+        vx += dv.x; vy += dv.y; vz += dv.z;
+        burnIdx++;
+      }
       srcAt(jd0 + s * h, src);
       // Adaptive inner steps (same rule as advance()) so a sun-grazer's
       // perihelion is resolved instead of leapt across
@@ -226,13 +263,13 @@ ORRERY.NBody = (function () {
         accel(px, py, pz, src, a);
         vx += 0.5 * hl * a.x; vy += 0.5 * hl * a.y; vz += 0.5 * hl * a.z;
         r = Math.sqrt(px * px + py * py + pz * pz);
-        if (r < out.minR) out.minR = r;
-        if (r > out.maxR) out.maxR = r;
+        if (r < out.minR) { out.minR = r; out.minRJd = jd0 + s * h; }
+        if (r > out.maxR) { out.maxR = r; out.maxRJd = jd0 + s * h; }
         if (r < SUN_R) { out.died = 'sun'; break; }
         remaining -= hl;
       }
 
-      if (s % every === 0) out.points.push({ x: px, y: py, z: pz });
+      if (s % every === 0) out.points.push({ x: px, y: py, z: pz, t: s * h });
       if (ti >= 0) {
         var t = src[ti];
         var d = Math.sqrt((px - t.x) * (px - t.x) + (py - t.y) * (py - t.y) + (pz - t.z) * (pz - t.z));
