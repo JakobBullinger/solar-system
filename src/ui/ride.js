@@ -98,6 +98,11 @@ ORRERY.Ride = (function () {
     camera.lookAt(smoothTarget);
   }
 
+  /** Set the chase distance (same clamp as the scroll wheel). */
+  function setBack(v) {
+    back = Math.max(2, Math.min(90, v));
+  }
+
   function exit() {
     if (!active) return;
     active = false;
@@ -113,6 +118,7 @@ ORRERY.Ride = (function () {
     init: init,
     start: start,
     tick: tick,
+    setBack: setBack,
     exit: exit,
     get active() { return active; }
   };

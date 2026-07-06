@@ -19,6 +19,7 @@
 
 <nav class="toggles" aria-label="View options">
   <button class="toggle toggle-tour" id="opt-tour">✦ Tour</button>
+  <button class="toggle toggle-replays" id="opt-replays">Replays</button>
   <button class="toggle toggle-missions" id="opt-missions">Missions</button>
   <button class="toggle" id="opt-sandbox">Sandbox</button>
   <button class="toggle" id="opt-events">Events</button>
@@ -130,12 +131,24 @@
   </div>
 </div>
 
+<div class="replay-menu" id="replay-menu" aria-hidden="true">
+  <header>
+    <div>
+      <h3>Mission replays</h3>
+      <p>Real missions, re-flown live in the orrery’s own gravity.</p>
+    </div>
+    <button id="rp-close" aria-label="Close replays">✕</button>
+  </header>
+  <div id="replay-list"></div>
+</div>
+
 <div class="tour" id="tour" aria-hidden="true">
   <div class="tour-card">
     <div class="tour-progress"><div id="tour-progress-fill"></div></div>
     <span class="tour-eyebrow" id="tour-eyebrow"></span>
     <h3 id="tour-title"></h3>
     <p id="tour-text"></p>
+    <p class="replay-stat" id="replay-stat"></p>
     <div class="tour-foot">
       <div class="tour-dots" id="tour-dots"></div>
       <div class="tour-nav">
