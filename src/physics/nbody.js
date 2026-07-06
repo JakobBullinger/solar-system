@@ -239,6 +239,7 @@ ORRERY.NBody = (function () {
     accel(px, py, pz, src, a);
     var out = {
       points: [], died: null, minR: 1e9, maxR: 0, endEnergy: 0,
+      minRJd: jd0, maxRJd: jd0,
       target: ti >= 0 ? { d: 1e9, jd: jd0, x: 0, y: 0, z: 0 } : null
     };
     var burnIdx = 0;
@@ -262,8 +263,8 @@ ORRERY.NBody = (function () {
         accel(px, py, pz, src, a);
         vx += 0.5 * hl * a.x; vy += 0.5 * hl * a.y; vz += 0.5 * hl * a.z;
         r = Math.sqrt(px * px + py * py + pz * pz);
-        if (r < out.minR) out.minR = r;
-        if (r > out.maxR) out.maxR = r;
+        if (r < out.minR) { out.minR = r; out.minRJd = jd0 + s * h; }
+        if (r > out.maxR) { out.maxR = r; out.maxRJd = jd0 + s * h; }
         if (r < SUN_R) { out.died = 'sun'; break; }
         remaining -= hl;
       }

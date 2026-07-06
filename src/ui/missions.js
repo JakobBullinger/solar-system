@@ -49,9 +49,10 @@ ORRERY.Missions = (function () {
     },
     {
       key: 'grazer', name: 'Icarus', special: 'sunGraze', rGoal: 0.08,
-      budget: 21, par: 18.8, limitY: 4,
+      budget: 21, par: 15, limitY: 4,
       desc: 'Skim inside 0.08 AU of the Sun — and survive.',
-      hint: 'Earth moves at 29.8 km/s. To fall, you must throw almost all of it away — burn hard retrograde.'
+      hint: 'Burning hard retrograde works — but the stylish way is out, then in: coast high, ' +
+        'and a mid-course burn against your motion up there costs far less. Falling is free.'
     },
     {
       key: 'escape', name: 'Starman', special: 'escape',
@@ -205,15 +206,27 @@ ORRERY.Missions = (function () {
   /** Would this plan succeed? Also parks the target marker. */
   function assess(pv, jd) {
     var good = false, readout = '';
+    var limitJd = jd + current.limitY * 365.25;   // milestones after this don't count
     if (current.special === 'sunGraze') {
-      good = !pv.died && pv.minR <= current.rGoal;
+      good = !pv.died && pv.minR <= current.rGoal && pv.minRJd <= limitJd;
       readout = 'perihelion ' + pv.minR.toFixed(3) + ' AU' + (pv.died ? ' · consumed!' : '');
+      if (!pv.died && pv.minR <= current.rGoal && pv.minRJd > limitJd) readout += ' · too late!';
     } else if (current.special === 'escape') {
       good = pv.endEnergy > 0;
       readout = good ? 'escape trajectory' : 'still bound to the Sun';
     } else if (current.special === 'slingshot') {
       var pass = pv.target && pv.target.d <= current.flybyTol;
-      good = pass && pv.maxR >= current.reachR;
+      var reachJd = null;                          // when the fling first clears the goal radius
+      if (pass && pv.maxR >= current.reachR) {
+        for (var k = 0; k < pv.points.length; k++) {
+          var pt = pv.points[k];
+          if (Math.sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z) >= current.reachR) {
+            reachJd = jd + pt.t;
+            break;
+          }
+        }
+      }
+      good = reachJd !== null && reachJd <= limitJd;
       readout = 'Jupiter pass ' + (pv.target ? pv.target.d.toFixed(3) : '—') +
         ' AU · flings to ' + pv.maxR.toFixed(1) + ' AU';
       if (pv.target) {
@@ -222,7 +235,7 @@ ORRERY.Missions = (function () {
         targetMark.visible = true;
       }
     } else if (pv.target) {
-      good = pv.target.d <= current.tol;
+      good = pv.target.d <= current.tol && pv.target.jd <= limitJd;
       var days = Math.round(pv.target.jd - jd);
       readout = 'closest ' + pv.target.d.toFixed(3) + ' AU · T+' +
         (days > 400 ? (days / 365.25).toFixed(1) + ' y' : days + ' d');
