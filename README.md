@@ -24,6 +24,9 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 
 ## Using the app
 
+- **Share any moment**: the address bar always encodes the current view —
+  `?jd=…&body=…&play=0` plus sandbox bodies in the `#sb=` hash. Copy the URL
+  at a paused conjunction or with your creations flying and the link reproduces it
 - **✦ Tour** (top right): a ~2-minute guided cinematic tour — Sun, Earth's spin,
   Jupiter's moons, Saturn, Halley in 1986, the Voyager grand tour — with captions.
   Auto-advances; arrow keys / dots navigate, Esc exits and restores your clock
@@ -65,6 +68,7 @@ src/
   ui/almanac-ui.js       events drawer
   ui/sandbox.js          drag-to-launch, trails, presets, HUD
   ui/tour.js             guided cinematic tour: stops script, captions, choreography
+  ui/permalink.js        deep links: URL ↔ app state (clock, selection, sandbox)
   main.js                bootstrap: scene graph, render loop, camera, picking
 build.js                 bundler → dist/index.html
 serve.js                 dev server with watch + rebuild
@@ -128,6 +132,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | Tooling | Dev server (`serve.js`, `npm run dev`), this README as running log/reference, app published to a hosted URL |
 | 2026-07-06 | 7 · Cinematic tour | Guided 8-stop tour: camera choreography via `focus`/`flyHome`, per-stop time rates, Halley-1986 + Voyager-1977 time-travel stops, caption card with auto-advance, UI auto-hide, clock restored on exit |
 | 2026-07-06 | 8 · Worlds up close | Git repo initialized. Custom shaders: day/night terminators, Earth city lights + drifting clouds, atmosphere rims per planet, Saturn ring↔planet mutual shadows, moon transit shadows, limb-darkened animated Sun |
+| 2026-07-06 | 9 · Sharing & mobile | Deep links (URL ↔ full app state incl. sandbox bodies), viewport + PWA meta with data-URI manifest/icon, touch-action + small-screen layout pass, first-visit tour offer |
 
 ## Ideas / backlog
 
