@@ -54,13 +54,18 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **Ride along**: chase-cam any sandbox body ("Ride along" in the sandbox HUD —
   launch the Voyager preset and ride the flybys) or a comet (button in its
   dossier). Scroll adjusts distance, Esc exits
-- **Missions** (top right): the sandbox with goals. Six missions launch from
+- **Missions** (top right): the sandbox with goals. Seven missions launch from
   Earth against a hard Δv budget — drag sets your departure burn (direction +
   size, added to Earth's own velocity), a live preview with *moving* planets
   shows your closest approach, and the gold arc means you've got it. Release
   to review the flight plan: click the arc and drag to add a **mid-course
   burn** at that moment of the flight (same budget), then Launch. Stars for
-  Δv efficiency; Grand Tour '77 sets the clock to the real Voyager window
+  Δv efficiency; Grand Tour '77 sets the clock to the real Voyager window;
+  **Halo Keeper** asks you to park at Sun–Earth L2 and hold station on the saddle
+- **L-points** (top right): markers for the Sun–Earth and Sun–Jupiter Lagrange
+  points L1–L5, each selectable with a dossier of its physics and residents
+  (JWST at Earth L2, the Trojan camps at Jupiter L4/L5 — their asteroid swarms
+  ride Jupiter's orbit whether the markers are on or not)
 - **True size** rescales planets to honest ratios vs the Sun
 
 ## Architecture
@@ -163,6 +168,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | Tooling | ORCHESTRATION.md: multi-agent worktree setup (roles, filesystem protocol, merge order, two-layer verification bar) + planned v2 PR-based flow with CI. Level 13 merged to main, verified, deployed |
 | 2026-07-06 | 14 · Mid-course burns | Releasing the departure drag now opens a flight plan: click a point on the previewed arc (each point carries its time-of-flight) and drag a second Δv from it — both burns share the mission budget, and the flight integrator splits its step to fire the impulse at its exact jd (`previewLive` gained scheduled burns + timestamped points). Gold-arc verdicts are now time-gated to the mission limit. Icarus par retuned 18.8 → 15: a two-burn scan (raise aphelion, then kill your speed out there) found a flight-confirmed 14.5 km/s minimum vs ~18.2 single-burn, and the hint teaches the trick. All six missions re-verified 3★-able at par by scans + flight-grade sims; a Grand Tour two-burn scan found nothing below its single-burn minimum, so its par stands. Challenge links replay the departure burn only for now |
 | 2026-07-06 | 15 · Mission replays | Narrated, chaptered replays of real missions riding the spacecraft (`replays.js`, reusing the tour card + ride cam): **New Horizons** is fully ballistic — one offline-searched launch state (42.813 km/s, found by stepping the app's own integrator exactly as live playback slices frames) hits Jupiter at 0.0153 AU on 28 Feb 2007, the historical date, then Pluto at ~0.0003 AU on 14 Jul 2015. **Cassini** flies the whole VVEJGA chain (Venus 0.0025 → Venus 0.0025 → Earth 0.0025 → Jupiter 0.020 AU → Saturn, captured); the softened integrator can't bend inner-planet flybys hard enough, so each big assist is applied as a searched reference velocity at closest approach, and SOI is computed live at the detected Saturn closest approach — the chain survives ±35% frame-time jitter. Burns split the integration at their exact jd; chapter jumps re-fly the trajectory deterministically; clock saved/restored on exit. Verified headless through `Sandbox.tick` (the live code path) + UI state assertions + a rendered mid-replay screenshot |
+| 2026-07-06 | 19 · Three-Body Room | Lagrange points as first-class citizens: `lagrange.js` solves the CR3BP collinear balance by bisection (roots cached per mass ratio; node-checked: Sun–Earth L1/L2 at 0.0102 AU, Sun–Jupiter L1 at 0.35 AU) and L4/L5 ride ±60°; an **L-points** toggle shows ten selectable markers with dossiers (JWST/Euclid at Earth L2, SOHO's storm-warning perch at L1, the sci-fi Counter-Earth at L3, Lucy touring the Trojans); always-on Trojan swarm clouds track Jupiter's actual L4/L5 bearings. New mission **Halo Keeper**: park within 0.01 AU of Sun–Earth L2 and hold 60 days — departure-only tops out at ~51 d (the saddle is real), so the mid-course burn is the mission. Playtest scan: 6,233 winning plans, 304/400 robust to frame-step jitter, min 0.4 km/s → par 0.5; station-keeping preview runs flight-grade steps (h=0.25), 99% verdict agreement; beaten 3★ in-app headless |
 
 ## Ideas / backlog
 
