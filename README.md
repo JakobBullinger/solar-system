@@ -47,6 +47,11 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **Ride along**: chase-cam any sandbox body ("Ride along" in the sandbox HUD —
   launch the Voyager preset and ride the flybys) or a comet (button in its
   dossier). Scroll adjusts distance, Esc exits
+- **Missions** (top right): the sandbox with goals. Six missions launch from
+  Earth against a hard Δv budget — drag sets your departure burn (direction +
+  size, added to Earth's own velocity), a live preview with *moving* planets
+  shows your closest approach, and the gold arc means you've got it. Stars for
+  Δv efficiency; Grand Tour '77 sets the clock to the real Voyager window
 - **True size** rescales planets to honest ratios vs the Sun
 
 ## Architecture
@@ -75,6 +80,7 @@ src/
   ui/sandbox.js          drag-to-launch, trails, presets, HUD
   ui/tour.js             guided cinematic tour: stops script, captions, choreography
   ui/ride.js             ride-along chase camera (probes, comets)
+  ui/missions.js         Mission Designer: goals, aiming, budgets, scoring
   ui/permalink.js        deep links: URL ↔ app state (clock, selection, sandbox)
   main.js                bootstrap: scene graph, render loop, camera, picking
 build.js                 bundler → dist/index.html
@@ -142,11 +148,12 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 9 · Sharing & mobile | Deep links (URL ↔ full app state incl. sandbox bodies), viewport + PWA meta with data-URI manifest/icon, touch-action + small-screen layout pass, first-visit tour offer |
 | 2026-07-06 | 10 · Ride-along | Chase camera for sandbox probes and comets: ride the Voyager flybys from the probe's shoulder; scroll-zoom, Esc exit, auto-exit on body death, planet-interior avoidance |
 | 2026-07-06 | 11 · Tonight's sky | Elongation-based visibility for naked-eye planets (real clock, not sim clock), "sky tonight" section in the almanac, load-time teaser pill with next-event countdown, "in Nd" chips on event rows |
+| 2026-07-06 | 12 · Mission Designer | Six missions with Δv budgets, drag-set departure burns, time-accurate aiming preview (moving planets + live closest-approach), star scoring vs par, localStorage bests. All verified winnable by brute-force playtest; Grand Tour '77 anchored to the real Voyager window and verified to require the slingshot |
 
 ## Ideas / backlog
 
-- Mission Designer game mode (north star): Δv budget, targets, scoring,
-  shareable challenges via deep links
+- Mission Designer v2: mid-course correction burns, shareable challenge links,
+  more missions (comet rendezvous, Mercury via Venus assist)
 - Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
 - Eclipse finder in the almanac
