@@ -83,7 +83,12 @@
       registry[m.data.key] = m.mesh;
     });
   });
-  var pickables = selectables.concat(moonEntries);
+  // Lagrange-point markers + Trojan swarms: selectable, but not on the rail
+  var lagrange = ORRERY.Lagrange3D.build();
+  scene.add(lagrange.group);
+  lagrange.entries.forEach(function (e) { registry[e.userData.body.key] = e; });
+
+  var pickables = selectables.concat(moonEntries, lagrange.entries);
 
   // --- UI -------------------------------------------------------------------
   ORRERY.TimeBar.init();
@@ -129,7 +134,7 @@
   });
 
   // View toggles
-  var opts = { orbits: true, labels: true, trueSize: false, sandbox: false };
+  var opts = { orbits: true, labels: true, trueSize: false, sandbox: false, lagrange: false };
   function bindToggle(id, key, apply) {
     var el = document.getElementById(id);
     el.setAttribute('aria-pressed', String(opts[key]));
@@ -143,6 +148,7 @@
   bindToggle('opt-labels', 'labels', function (on) { ORRERY.Labels.setVisible(on); });
   bindToggle('opt-true', 'trueSize', applyScaleMode);
   bindToggle('opt-sandbox', 'sandbox', function (on) { ORRERY.Sandbox.setMode(on); });
+  bindToggle('opt-lagrange', 'lagrange', function (on) { ORRERY.Lagrange3D.setMarkersVisible(on); });
 
   var scaleLerp = { value: 0, target: 0 };
   function applyScaleMode(on) {
@@ -303,6 +309,7 @@
     }
 
     comets.forEach(function (c) { ORRERY.Comets3D.update(c, jd); });
+    ORRERY.Lagrange3D.update(jd);
 
     sun.userData.mesh.rotation.y = (daysSinceEpoch * 24 / DATA.SUN.rotationHours) * Math.PI * 2;
     asteroids.rotation.y += asteroids.userData.spinRate * dt;
