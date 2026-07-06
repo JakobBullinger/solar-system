@@ -78,8 +78,10 @@ ORRERY.Tour = (function () {
     els.fill = document.getElementById('tour-progress-fill');
 
     document.getElementById('opt-tour').addEventListener('click', start);
-    document.getElementById('tour-prev').addEventListener('click', function () { step(-1); });
-    document.getElementById('tour-next').addEventListener('click', function () { step(1); });
+    // Guarded: the caption card is shared with Replays, which binds its own
+    // handlers to the same buttons under its own active flag.
+    document.getElementById('tour-prev').addEventListener('click', function () { if (active) step(-1); });
+    document.getElementById('tour-next').addEventListener('click', function () { if (active) step(1); });
     document.getElementById('tour-exit').addEventListener('click', exit);
 
     window.addEventListener('keydown', function (e) {
@@ -95,6 +97,9 @@ ORRERY.Tour = (function () {
       start();
     });
     document.getElementById('offer-skip').addEventListener('click', dismissOffer);
+
+    // Mission replays reuse this card and the same camera hooks
+    if (ORRERY.Replays) ORRERY.Replays.init(hooks);
   }
 
   /**
@@ -119,6 +124,7 @@ ORRERY.Tour = (function () {
   function start() {
     if (active) return;
     dismissOffer();
+    if (ORRERY.Replays) ORRERY.Replays.exit();
     ORRERY.Ride.exit();
     active = true;
     restored = false;

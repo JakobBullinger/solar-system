@@ -31,6 +31,7 @@ const MODULES = [
   'src/ui/sandbox.js',
   'src/ui/tour.js',
   'src/ui/ride.js',
+  'src/ui/replays.js',
   'src/ui/missions.js',
   'src/ui/challenge.js',
   'src/ui/permalink.js',
