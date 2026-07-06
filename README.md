@@ -149,10 +149,11 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 10 · Ride-along | Chase camera for sandbox probes and comets: ride the Voyager flybys from the probe's shoulder; scroll-zoom, Esc exit, auto-exit on body death, planet-interior avoidance |
 | 2026-07-06 | 11 · Tonight's sky | Elongation-based visibility for naked-eye planets (real clock, not sim clock), "sky tonight" section in the almanac, load-time teaser pill with next-event countdown, "in Nd" chips on event rows |
 | 2026-07-06 | 12 · Mission Designer | Six missions with Δv budgets, drag-set departure burns, time-accurate aiming preview (moving planets + live closest-approach), star scoring vs par, localStorage bests. All verified winnable by brute-force playtest; Grand Tour '77 anchored to the real Voyager window and verified to require the slingshot |
+| 2026-07-06 | 13 · Challenge links | Mission runs are shareable: `?ch=mission,jd,vx,vy,vz,stars` (burn vector as integer micro-AU/day, ~0.002 km/s precision) replays the exact flight as a ghost run under a "Beat this: ★★★ by a friend" banner — no stars banked, budget-validated against forged links — then hands over for a counter-attempt with a beat/matched/still-theirs verdict. Every win grows a "Copy challenge link" action (`challenge.js`); permalink freezes the URL while the ghost flies; classic `?jd/body` + `#sb=` links untouched. Round-trip verified headless: a 3★ Mars link found by offline search replays to the same 3★ and regenerates a byte-identical link |
 
 ## Ideas / backlog
 
-- Mission Designer v2: mid-course correction burns, shareable challenge links,
+- Mission Designer v2: mid-course correction burns,
   more missions (comet rendezvous, Mercury via Venus assist)
 - Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
