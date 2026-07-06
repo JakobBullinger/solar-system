@@ -4,6 +4,7 @@
  * On load, state is applied from the URL:
  *   ?jd=2461443.5&body=encke&rate=4&play=0     clock, selection, speed
  *   #sb=x,y,z,vx,vy,vz,rrggbb;…                sandbox bodies (AU, AU/day)
+ *   ?ch=mission,jd,vx,vy,vz,stars              a mission challenge (challenge.js)
  *
  * While running, the URL is rewritten (debounced, replaceState — no history
  * spam) whenever the view differs from the default, so copying the address
@@ -76,6 +77,7 @@ ORRERY.Permalink = (function () {
 
   function write() {
     if (ORRERY.Tour.active) return;   // the tour's time-travel isn't the user's state
+    if (ORRERY.Challenge && ORRERY.Challenge.replaying) return;  // keep ?ch= while the ghost flies
     var url = build();
     if (url === lastUrl) return;
     lastUrl = url;

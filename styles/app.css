@@ -1145,3 +1145,40 @@ body.touring .scale-note { display: none; }
   .tour-offer { bottom: 150px; }
   .tonight-pill { top: 58px; left: 10px; }
 }
+
+/* ---- Challenge links -------------------------------------------------------------- */
+.ch-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(500px, calc(100vw - 24px));
+  padding: 9px 12px 9px 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid rgba(242, 166, 60, 0.45);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.ch-banner.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.ch-banner strong { color: var(--amber); letter-spacing: 0.08em; }
+.ch-banner em { color: #8ce8dd; font-style: normal; }
+.ch-close {
+  flex: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  border-radius: 50%;
+}
+.ch-close:hover { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .ch-banner { transition: none; } }
+body.touring .ch-banner { display: none; }

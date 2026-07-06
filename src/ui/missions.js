@@ -265,6 +265,23 @@ ORRERY.Missions = (function () {
     render();
   }
 
+  /** Challenge links: re-fly a recorded departure burn as a ghost run. */
+  function replayBurn(key, jd, vec) {
+    var m = null;
+    MISSIONS.forEach(function (mi) { if (mi.key === key) m = mi; });
+    if (!m) return false;
+    var kms = Math.sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z) * KMS;
+    if (kms < 0.1 || kms > m.budget + 0.01) return false;   // forged or corrupt link
+    if (ORRERY.Sandbox.active) document.getElementById('opt-sandbox').click();
+    dropProbe();
+    current = m;
+    attempt = { ghost: true, pendingBurn: { vec: vec, kms: kms } };
+    els.btn.setAttribute('aria-pressed', 'true');
+    ORRERY.TimeBar.jd = jd;
+    launch();
+    return true;
+  }
+
   function finish(won, msg) {
     state = 'result';
     attempt.won = won;
@@ -272,12 +289,20 @@ ORRERY.Missions = (function () {
     if (won) {
       var n = attempt.spent <= current.par ? 3 : (attempt.spent <= current.par * 1.3 ? 2 : 1);
       attempt.stars = n;
-      if (!stars[current.key] || stars[current.key] < n) {
+      // Ghost runs (challenge-link replays) demonstrate, they don't bank stars
+      if (!attempt.ghost && (!stars[current.key] || stars[current.key] < n)) {
         stars[current.key] = n;
         saveStars();
       }
     }
     render();
+    if (ORRERY.Challenge) {
+      ORRERY.Challenge.onFinish({
+        key: current.key, won: won, stars: attempt.stars || 0, ghost: !!attempt.ghost,
+        jd: attempt.launchJd, vec: attempt.pendingBurn.vec, kms: attempt.spent,
+        actions: els.hud.querySelector('.ms-actions')
+      });
+    }
   }
 
   function tick(jd) {
@@ -528,6 +553,7 @@ ORRERY.Missions = (function () {
     init: init,
     tick: tick,
     close: close,
+    replayBurn: replayBurn,
     get aiming() { return state === 'aim'; },
     get active() { return state !== 'closed'; }
   };
