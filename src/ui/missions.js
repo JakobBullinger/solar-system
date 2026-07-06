@@ -9,6 +9,13 @@
  * target, so the launch-window hunt — scrub the time bar, watch the
  * geometry — is the actual gameplay. Scoring: stars by Δv efficiency
  * against par, best results kept in localStorage.
+ *
+ * Mid-course burns: releasing the departure drag opens a flight plan
+ * instead of launching. There the player may click a point on the arc
+ * (each carries its time-of-flight) and drag a second Δv from it; the
+ * preview re-integrates with the impulse applied at that moment, and both
+ * burns draw from the one budget. In flight the scheduled impulse fires
+ * inside the integrator at its exact jd.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -65,7 +72,7 @@ ORRERY.Missions = (function () {
   var camera, canvas, controls;
   var els = {};
   var group;                       // preview visuals
-  var state = 'closed';            // closed | list | brief | aim | flight | result
+  var state = 'closed';            // closed | list | brief | aim | plan | flight | result
   var current = null;
   var attempt = null;
   var stars = {};
@@ -111,7 +118,11 @@ ORRERY.Missions = (function () {
   var dragging = false;
   var startAU = null, startPx = { x: 0, y: 0 };
   var lastEvent = null, lastPreviewAt = 0;
-  var previewLine, burnLine, targetMark;
+  var previewLine, burnLine, targetMark, midMark;
+
+  // Mid-course planning: the arc point being dragged from (plan state)
+  var planDragging = false;
+  var planPick = null;             // { t: days after departure, au: {x,y,z} }
 
   function pickEcliptic(e, out) {
     ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -144,9 +155,14 @@ ORRERY.Missions = (function () {
       transparent: true, depthWrite: false
     }));
     targetMark.scale.setScalar(4.5);
+    midMark = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: ORRERY.Textures.glowSprite('rgba(190,255,244,0.95)', 'rgba(103,227,210,0.25)'),
+      transparent: true, depthWrite: false
+    }));
+    midMark.scale.setScalar(3.4);
     previewLine.frustumCulled = burnLine.frustumCulled = false;
-    previewLine.visible = burnLine.visible = targetMark.visible = false;
-    group.add(previewLine, burnLine, targetMark);
+    previewLine.visible = burnLine.visible = targetMark.visible = midMark.visible = false;
+    group.add(previewLine, burnLine, targetMark, midMark);
     scene.add(group);
   }
 
@@ -164,24 +180,30 @@ ORRERY.Missions = (function () {
 
   var V1 = new THREE.Vector3(), V2 = new THREE.Vector3();
 
-  function refreshPreview(e) {
-    if (!pickEcliptic(e, hit)) return;
-    var burn = dragBurn(e);
-    if (!burn) return;
-    var jd = ORRERY.TimeBar.jd;
+  /** Departure state: Earth's velocity plus the burn, nudged off the surface. */
+  function launchState(jd, burnVec) {
     var es = earthState(jd);
-    var vel = { x: es.vel.x + burn.vec.x, y: es.vel.y + burn.vec.y, z: es.vel.z + burn.vec.z
-    };
+    var vel = { x: es.vel.x + burnVec.x, y: es.vel.y + burnVec.y, z: es.vel.z + burnVec.z };
     var vl = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
     var pos = {
       x: es.pos.x + vel.x / vl * 0.02,
       y: es.pos.y + vel.y / vl * 0.02,
       z: es.pos.z + vel.z / vl * 0.02
     };
-    var pv = NB.previewLive(pos, vel, jd, PREVIEW_STEPS, PREVIEW_H,
-      targetEl(), Math.ceil(PREVIEW_STEPS / PREVIEW_N));
+    return { es: es, pos: pos, vel: vel };
+  }
 
-    // Would this burn succeed?
+  /** Integrate the full flight plan (departure burn + optional mid-course). */
+  function runPlan(jd, burn1Vec, burn2) {
+    var ls = launchState(jd, burn1Vec);
+    var burns = burn2 ? [{ t: burn2.t, dv: burn2.vec }] : null;
+    var pv = NB.previewLive(ls.pos, ls.vel, jd, PREVIEW_STEPS, PREVIEW_H,
+      targetEl(), Math.ceil(PREVIEW_STEPS / PREVIEW_N), burns);
+    return { ls: ls, pv: pv };
+  }
+
+  /** Would this plan succeed? Also parks the target marker. */
+  function assess(pv, jd) {
     var good = false, readout = '';
     if (current.special === 'sunGraze') {
       good = !pv.died && pv.minR <= current.rGoal;
@@ -208,57 +230,182 @@ ORRERY.Missions = (function () {
       targetMark.position.copy(V1);
       targetMark.visible = true;
     }
+    return { good: good, readout: readout };
+  }
+
+  /** Draw the trajectory arc + departure burn tick for a computed plan. */
+  function drawPlan(run, good) {
+    var pv = run.pv;
     previewLine.material.color.setHex(good ? 0xffd27f : 0x8ce8dd);
     if (pv.died) previewLine.material.color.setHex(0xff8585);
 
     var posAttr = previewLine.geometry.attributes.position;
     var n = Math.min(pv.points.length, PREVIEW_N);
     for (var i = 0; i < PREVIEW_N; i++) {
-      K.toScene(pv.points[Math.min(i, n - 1)] || pos, V2);
+      K.toScene(pv.points[Math.min(i, n - 1)] || run.ls.pos, V2);
       posAttr.setXYZ(i, V2.x, V2.y, V2.z);
     }
     posAttr.needsUpdate = true;
     previewLine.visible = n > 1;
 
-    K.toScene(es.pos, V1);
-    K.toScene(pos, V2);
-    V2.sub(V1).setLength(6 + burn.kms * 0.5).add(V1);
+    K.toScene(run.ls.es.pos, V1);
+    K.toScene(run.ls.pos, V2);
+    V2.sub(V1).setLength(6 + (attempt.burn1 ? attempt.burn1.kms : 3) * 0.5).add(V1);
     burnLine.geometry.setFromPoints([V1, V2.clone()]);
     burnLine.visible = true;
+  }
 
-    els.tip.innerHTML = '<strong>Δv ' + burn.kms.toFixed(1) + ' km/s</strong>' +
-      (burn.kms >= current.budget - 0.01 ? ' · MAX' : '') +
-      '<br>' + readout;
+  function showTip(e, kms, atMax, readout, good) {
+    els.tip.innerHTML = '<strong>Δv ' + kms.toFixed(1) + ' km/s</strong>' +
+      (atMax ? ' · MAX' : '') + '<br>' + readout;
     els.tip.classList.toggle('good', good);
     els.tip.style.transform = 'translate(' + (e.clientX + 16) + 'px,' + (e.clientY - 8) + 'px)';
     els.tip.classList.add('show');
+  }
+
+  function refreshPreview(e) {
+    if (!pickEcliptic(e, hit)) return;
+    var burn = dragBurn(e);
+    if (!burn) return;
+    var jd = ORRERY.TimeBar.jd;
+    var run = runPlan(jd, burn.vec, null);
+    var a = assess(run.pv, jd);
+    attempt.burn1 = burn;          // so drawPlan scales the burn tick
+    drawPlan(run, a.good);
+    showTip(e, burn.kms, burn.kms >= current.budget - 0.01, a.readout, a.good);
     attempt.pendingBurn = burn;
+  }
+
+  // ---- Mid-course planning ------------------------------------------------------
+  function remainingKms() {
+    return Math.max(0, current.budget - attempt.burn1.kms -
+      (attempt.burn2 ? attempt.burn2.kms : 0));
+  }
+
+  /** Re-integrate + redraw the committed plan (no drag in progress). */
+  function refreshPlanCommitted() {
+    var run = runPlan(attempt.departJd, attempt.burn1.vec, attempt.burn2);
+    var a = assess(run.pv, attempt.departJd);
+    if (!current.targetKey) targetMark.visible = false;
+    drawPlan(run, a.good);
+    attempt.planPv = run.pv;
+    attempt.planGood = a.good;
+    attempt.planReadout = a.readout;
+    placeMidMark();
+  }
+
+  function placeMidMark() {
+    var at = planDragging && planPick ? planPick.au
+      : (attempt.burn2 ? attempt.burn2.au : null);
+    if (at) {
+      K.toScene(at, V1);
+      midMark.position.copy(V1);
+      midMark.visible = true;
+    } else {
+      midMark.visible = false;
+    }
+  }
+
+  /** Find the preview-arc point nearest the pointer (screen space). */
+  function pickArcPoint(e) {
+    if (!attempt.planPv) return null;
+    var pts = attempt.planPv.points;
+    var limitD = current.limitY * 365.25;
+    var best = null, bestD2 = 26 * 26;
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].t > limitD) break;  // a burn after the deadline is wasted
+      K.toScene(pts[i], V1);
+      V1.project(camera);
+      if (V1.z > 1) continue;        // behind the camera
+      var sx = (V1.x + 1) / 2 * window.innerWidth;
+      var sy = (-V1.y + 1) / 2 * window.innerHeight;
+      var d2 = (sx - e.clientX) * (sx - e.clientX) + (sy - e.clientY) * (sy - e.clientY);
+      if (d2 < bestD2) { bestD2 = d2; best = pts[i]; }
+    }
+    return best;
+  }
+
+  /** Current plan drag → mid-course Δv (in-plane), clamped to what's left. */
+  function dragBurn2(e) {
+    var left = current.budget - attempt.burn1.kms;
+    var cur = sceneToAU(hit);
+    var dx = cur.x - planPick.au.x, dy = cur.y - planPick.au.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-9 || left < 0.1) return null;
+    var px = Math.hypot(e.clientX - startPx.x, e.clientY - startPx.y);
+    var kms = Math.min(left, Math.max(0.1, px * DV_PER_PX));
+    var v = kms / KMS / len;
+    return {
+      t: planPick.t, au: planPick.au,
+      vec: { x: dx * v, y: dy * v, z: 0 }, kms: kms
+    };
+  }
+
+  function refreshPlanDrag(e) {
+    if (!pickEcliptic(e, hit)) return;
+    var burn2 = dragBurn2(e);
+    if (!burn2) return;
+    var run = runPlan(attempt.departJd, attempt.burn1.vec, burn2);
+    var a = assess(run.pv, attempt.departJd);
+    if (!current.targetKey) targetMark.visible = false;
+    drawPlan(run, a.good);
+    placeMidMark();
+    var total = attempt.burn1.kms + burn2.kms;
+    showTip(e, burn2.kms, total >= current.budget - 0.01,
+      'T+' + Math.round(burn2.t) + ' d · total ' + total.toFixed(1) + ' km/s<br>' + a.readout,
+      a.good);
+    attempt.pendingBurn2 = burn2;
+  }
+
+  function finishPlanDrag(e) {
+    planDragging = false;
+    controls.enabled = true;
+    els.tip.classList.remove('show');
+    var px = Math.hypot(e.clientX - startPx.x, e.clientY - startPx.y);
+    if (px > 8 && attempt.pendingBurn2) attempt.burn2 = attempt.pendingBurn2;
+    attempt.pendingBurn2 = null;
+    planPick = null;
+    refreshPlanCommitted();
+    render();
+  }
+
+  /** Departure drag released → freeze the clock and open the flight plan. */
+  function enterPlan(burn) {
+    attempt.burn1 = burn;
+    attempt.burn2 = null;
+    attempt.departJd = ORRERY.TimeBar.jd;
+    ORRERY.TimeBar.playing = false;
+    state = 'plan';
+    refreshPlanCommitted();
+    render();
   }
 
   function clearAim() {
     dragging = false;
+    planDragging = false;
+    planPick = null;
     controls.enabled = true;
-    previewLine.visible = burnLine.visible = targetMark.visible = false;
+    previewLine.visible = burnLine.visible = targetMark.visible = midMark.visible = false;
     els.tip.classList.remove('show');
   }
 
   // ---- Launch & flight -----------------------------------------------------------
   function launch() {
-    var burn = attempt.pendingBurn;
-    var jd = ORRERY.TimeBar.jd;
-    var es = earthState(jd);
-    var vel = { x: es.vel.x + burn.vec.x, y: es.vel.y + burn.vec.y, z: es.vel.z + burn.vec.z };
-    var vl = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
-    var pos = {
-      x: es.pos.x + vel.x / vl * 0.02,
-      y: es.pos.y + vel.y / vl * 0.02,
-      z: es.pos.z + vel.z / vl * 0.02
-    };
-    attempt.probe = ORRERY.Sandbox.addBody(pos, vel, '#e9eef7', 1600);
+    var jd = attempt.departJd;
+    ORRERY.TimeBar.jd = jd;        // plan may have scrubbed the clock; depart on schedule
+    var ls = launchState(jd, attempt.burn1.vec);
+    attempt.probe = ORRERY.Sandbox.addBody(ls.pos, ls.vel, '#e9eef7', 1600);
+    if (attempt.burn2) {
+      attempt.probe.p.burns = [
+        { jd: jd + attempt.burn2.t, dv: attempt.burn2.vec, done: false }
+      ];
+    }
     attempt.launchJd = jd;
-    attempt.spent = burn.kms;
+    attempt.spent = attempt.burn1.kms + (attempt.burn2 ? attempt.burn2.kms : 0);
     attempt.closest = 1e9;
     attempt.minR = 1e9;
+    clearAim();
+    canvas.style.cursor = '';
     state = 'flight';
     ORRERY.TimeBar.rate = 20;
     ORRERY.TimeBar.playing = true;
@@ -275,9 +422,9 @@ ORRERY.Missions = (function () {
     if (ORRERY.Sandbox.active) document.getElementById('opt-sandbox').click();
     dropProbe();
     current = m;
-    attempt = { ghost: true, pendingBurn: { vec: vec, kms: kms } };
+    // Challenge links carry the departure burn only (no mid-course leg)
+    attempt = { ghost: true, burn1: { vec: vec, kms: kms }, burn2: null, departJd: jd };
     els.btn.setAttribute('aria-pressed', 'true');
-    ORRERY.TimeBar.jd = jd;
     launch();
     return true;
   }
@@ -299,7 +446,8 @@ ORRERY.Missions = (function () {
     if (ORRERY.Challenge) {
       ORRERY.Challenge.onFinish({
         key: current.key, won: won, stars: attempt.stars || 0, ghost: !!attempt.ghost,
-        jd: attempt.launchJd, vec: attempt.pendingBurn.vec, kms: attempt.spent,
+        jd: attempt.launchJd, vec: attempt.burn1.vec, kms: attempt.spent,
+        midBurn: !!attempt.burn2,   // links can't carry the second leg (yet)
         actions: els.hud.querySelector('.ms-actions')
       });
     }
@@ -309,6 +457,10 @@ ORRERY.Missions = (function () {
     if (state === 'aim' && dragging && lastEvent && performance.now() - lastPreviewAt > 130) {
       lastPreviewAt = performance.now();
       refreshPreview(lastEvent);
+    }
+    if (state === 'plan' && planDragging && lastEvent && performance.now() - lastPreviewAt > 130) {
+      lastPreviewAt = performance.now();
+      refreshPlanDrag(lastEvent);
     }
     if (state !== 'flight') return;
 
@@ -368,6 +520,12 @@ ORRERY.Missions = (function () {
     } else if (current.special !== 'escape' && attempt.closest < 1e8) {
       line += ' · closest so far: ' + attempt.closest.toFixed(3) + ' AU';
     }
+    if (attempt.burn2) {
+      var b = attempt.probe.p.burns && attempt.probe.p.burns[0];
+      line += b && b.done
+        ? ' · mid-burn ✓'
+        : ' · mid-burn in ' + Math.max(0, Math.round(attempt.launchJd + attempt.burn2.t - jd)) + ' d';
+    }
     return line;
   }
 
@@ -395,9 +553,26 @@ ORRERY.Missions = (function () {
       h = '<div class="ms-title">' + m.name + '</div>' +
         '<p class="ms-desc">Drag anywhere in space: direction is where you push off from Earth, ' +
         'length is your burn. <span class="ms-gold">Gold arc</span> = mission accomplished. ' +
-        'Scrub the time bar to hunt a better launch window.</p>' +
+        'Scrub the time bar to hunt a better launch window. ' +
+        'Release to review your flight plan.</p>' +
         '<div class="ms-meta">Budget <strong>' + m.budget + ' km/s</strong></div>' +
         '<div class="ms-actions"><button data-act="brief">Cancel</button></div>';
+    } else if (state === 'plan') {
+      var spent = attempt.burn1.kms + (attempt.burn2 ? attempt.burn2.kms : 0);
+      h = '<div class="ms-title">' + m.name + ' — flight plan</div>' +
+        '<p class="ms-desc">Departure burn set. Click a point on the arc and drag to add a ' +
+        'mid-course burn there — both draw from the same budget. ' +
+        '<span class="ms-gold">Gold arc</span> = mission accomplished.</p>' +
+        '<div class="ms-meta">Δv <strong>' + spent.toFixed(1) + ' / ' + m.budget + ' km/s</strong>' +
+        (attempt.burn2
+          ? ' · mid-burn <strong>' + attempt.burn2.kms.toFixed(1) + ' km/s</strong> at T+' +
+            Math.round(attempt.burn2.t) + ' d'
+          : ' · no mid-course burn') +
+        (attempt.planReadout ? '<br>' + attempt.planReadout : '') + '</div>' +
+        '<div class="ms-actions"><button data-act="launch" class="ms-primary">Launch</button>' +
+        (attempt.burn2 ? '<button data-act="clearburn">Clear mid-burn</button>' : '') +
+        '<button data-act="aim">Re-aim</button>' +
+        '<button data-act="brief">Cancel</button></div>';
     } else if (state === 'flight') {
       h = '<div class="ms-title">' + m.name + ' — en route</div>' +
         '<div class="ms-flight" id="ms-flight">T+ 0 d</div>' +
@@ -445,6 +620,7 @@ ORRERY.Missions = (function () {
   function act(a) {
     if (a === 'aim') {
       if (ORRERY.Sandbox.active) document.getElementById('opt-sandbox').click();
+      clearAim();
       attempt = {};
       state = 'aim';
       ORRERY.Panel.close();
@@ -454,6 +630,12 @@ ORRERY.Missions = (function () {
         ORRERY.TimeBar.jd = current.epoch;
         ORRERY.TimeBar.playing = false;
       }
+    } else if (a === 'launch') {
+      launch();
+      return;
+    } else if (a === 'clearburn') {
+      attempt.burn2 = null;
+      refreshPlanCommitted();
     } else if (a === 'brief') {
       clearAim();
       canvas.style.cursor = '';
@@ -520,6 +702,17 @@ ORRERY.Missions = (function () {
     });
 
     canvas.addEventListener('pointerdown', function (e) {
+      if (state === 'plan' && e.button === 0) {
+        if (current.budget - attempt.burn1.kms < 0.1) return;  // nothing left to burn
+        var pt = pickArcPoint(e);
+        if (!pt || !pickEcliptic(e, hit)) return;
+        planPick = { t: pt.t, au: { x: pt.x, y: pt.y, z: pt.z } };
+        planDragging = true;
+        controls.enabled = false;
+        startPx.x = e.clientX; startPx.y = e.clientY;
+        placeMidMark();
+        return;
+      }
       if (state !== 'aim' || e.button !== 0) return;
       if (!pickEcliptic(e, hit)) return;
       dragging = true;
@@ -532,20 +725,25 @@ ORRERY.Missions = (function () {
         lastEvent = e;
         refreshPreview(e);
         lastPreviewAt = performance.now();
+      } else if (state === 'plan' && planDragging) {
+        lastEvent = e;
+        refreshPlanDrag(e);
+        lastPreviewAt = performance.now();
       }
     });
     window.addEventListener('pointerup', function (e) {
+      if (state === 'plan' && planDragging) {
+        finishPlanDrag(e);
+        return;
+      }
       if (state !== 'aim' || !dragging) return;
       var px = Math.hypot(e.clientX - startPx.x, e.clientY - startPx.y);
       var burn = attempt.pendingBurn;
       clearAim();
-      if (px > 8 && burn) {
-        canvas.style.cursor = '';
-        launch();
-      }
+      if (px > 8 && burn) enterPlan(burn);
     });
     window.addEventListener('keydown', function (e) {
-      if (e.code === 'Escape' && state === 'aim') act('brief');
+      if (e.code === 'Escape' && (state === 'aim' || state === 'plan')) act('brief');
     });
   }
 
@@ -554,7 +752,7 @@ ORRERY.Missions = (function () {
     tick: tick,
     close: close,
     replayBurn: replayBurn,
-    get aiming() { return state === 'aim'; },
+    get aiming() { return state === 'aim' || state === 'plan'; },
     get active() { return state !== 'closed'; }
   };
 })();
