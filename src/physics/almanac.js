@@ -186,5 +186,36 @@ ORRERY.Almanac = (function () {
     return function (t) { return separation(pA.el, pB.el, earth.el, t); };
   }
 
-  return { findAll: findAll };
+  var NAKED_EYE = ['mercury', 'venus', 'mars', 'jupiter', 'saturn'];
+
+  /**
+   * Where the bright planets sit in Earth's sky at jd, from solar elongation
+   * alone (no observer location needed): east of the Sun = evening sky,
+   * west = morning sky, near 180° = up all night, under ~15° = unobservable.
+   */
+  function visibility(jd) {
+    var PLANETS = ORRERY.DATA.PLANETS;
+    var earth = null;
+    PLANETS.forEach(function (p) { if (p.key === 'earth') earth = p; });
+    var eh = K.heliocentric(earth.el, jd);
+    var out = [];
+    PLANETS.forEach(function (p) {
+      if (NAKED_EYE.indexOf(p.key) === -1) return;
+      var e = elongation(p.el, earth.el, jd) * RAD2DEG;
+      var g = geo(p.el, earth.el, jd);
+      var d = wrapPi(Math.atan2(g.y, g.x) - Math.atan2(-eh.y, -eh.x));
+      var kind, phrase;
+      if (e < 15) { kind = 'hidden'; phrase = 'lost in the Sun’s glare'; }
+      else if (e > 150) { kind = 'allnight'; phrase = 'up all night — near opposition'; }
+      else if (d > 0) { kind = 'evening'; phrase = 'evening sky after sunset'; }
+      else { kind = 'morning'; phrase = 'morning sky before dawn'; }
+      out.push({
+        key: p.key, name: p.name, color: p.color,
+        elong: Math.round(e), kind: kind, phrase: phrase
+      });
+    });
+    return out;
+  }
+
+  return { findAll: findAll, visibility: visibility };
 })();

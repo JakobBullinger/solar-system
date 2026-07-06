@@ -505,6 +505,39 @@ button:focus-visible {
 }
 #ev-refresh:hover, #ev-close:hover { color: var(--text); }
 
+#ev-tonight {
+  padding: 14px 22px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ev-t-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.ev-t-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 3.5px 0;
+  font-size: 12.5px;
+}
+.ev-t-row.dim { opacity: 0.45; }
+.ev-t-name { min-width: 64px; font-weight: 600; }
+.ev-t-what { color: var(--muted); font-size: 12px; }
+
+.ev-in {
+  margin-left: 7px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: #ffe1a8;
+  background: rgba(242, 166, 60, 0.12);
+  border: 1px solid rgba(242, 166, 60, 0.3);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 #ev-list {
   flex: 1;
   overflow-y: auto;
@@ -666,6 +699,56 @@ button:focus-visible {
 }
 .sb-speed.show { opacity: 1; }
 .sb-speed.esc { color: #ff8585; border-color: rgba(255, 133, 133, 0.35); }
+
+/* ---- "Tonight" teaser pill ------------------------------------------------------ */
+.tonight-pill {
+  position: fixed;
+  top: 84px;
+  left: 26px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  max-width: min(520px, calc(100vw - 40px));
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.5s, transform 0.5s;
+}
+.tonight-pill.show { opacity: 1; transform: none; pointer-events: auto; }
+.tp-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 4px 8px 15px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: rgba(233, 238, 247, 0.9);
+  text-align: left;
+  min-width: 0;
+}
+#tp-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-icon { color: var(--amber); flex-shrink: 0; }
+.tp-go { color: var(--muted); flex-shrink: 0; }
+.tp-main:hover .tp-go { color: var(--text); }
+.tp-close {
+  padding: 8px 12px 8px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.tp-close:hover { color: var(--text); }
+body.touring .tonight-pill { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tonight-pill { transition: none; }
+}
 
 /* ---- Ride-along HUD -------------------------------------------------------------- */
 .ride-hud {
@@ -929,4 +1012,5 @@ body.touring .scale-note { display: none; }
   #tour-title { font-size: 18px; }
   #tour-text { font-size: 12.5px; }
   .tour-offer { bottom: 150px; }
+  .tonight-pill { top: 58px; left: 10px; }
 }

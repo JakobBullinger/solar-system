@@ -56,8 +56,18 @@
     <button id="ev-refresh" title="Recompute from the current date">↻</button>
     <button id="ev-close" aria-label="Close almanac">✕</button>
   </header>
+  <div id="ev-tonight"></div>
   <div id="ev-list"></div>
 </aside>
+
+<div class="tonight-pill" id="tonight-pill">
+  <button class="tp-main" id="tp-main">
+    <span class="tp-icon">◐</span>
+    <span id="tp-text"></span>
+    <span class="tp-go">▸</span>
+  </button>
+  <button class="tp-close" id="tp-close" aria-label="Dismiss">✕</button>
+</div>
 <div class="scale-note" id="scale-note">
   <strong>True size mode.</strong> Planet sizes are now honest relative to the Sun.
   Distances remain compressed — at true scale, Earth would sit 1.6&nbsp;km from
