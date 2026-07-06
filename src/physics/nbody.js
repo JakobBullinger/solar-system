@@ -240,9 +240,11 @@ ORRERY.NBody = (function () {
     var out = {
       points: [], died: null, minR: 1e9, maxR: 0, endEnergy: 0,
       minRJd: jd0, maxRJd: jd0,
-      target: ti >= 0 ? { d: 1e9, jd: jd0, x: 0, y: 0, z: 0 } : null
+      target: ti >= 0 ? { d: 1e9, jd: jd0, x: 0, y: 0, z: 0 } : null,
+      capture: null              // longest bound streak vs the target (below)
     };
     var burnIdx = 0;
+    var capBest = null, capCur = null;
     for (var s = 1; s <= steps; s++) {
       if (burns && burnIdx < burns.length && burns[burnIdx].t <= (s - 1) * h) {
         var dv = burns[burnIdx].dv;
@@ -278,10 +280,28 @@ ORRERY.NBody = (function () {
           out.target.jd = jd0 + s * h;
           out.target.x = t.x; out.target.y = t.y; out.target.z = t.z;
         }
+        // Capture tracking (orbit-insertion missions): count consecutive
+        // days bound to the target — negative two-body energy inside its
+        // Hill sphere, the same relPlanet() test the flight HUD runs — and
+        // carry the streak's osculating rp/ra (worstRp = the streak's
+        // largest periapsis, so a "periapsis under X" verdict can't be
+        // gamed by one lucky sample).
+        var rel = relPlanet({ x: px, y: py, z: pz }, { x: vx, y: vy, z: vz },
+          targetEl, jd0 + s * h);
+        if (rel && rel.bound) {
+          if (!capCur) capCur = { days: 0, startJd: jd0 + s * h, worstRp: 0, rp: 0, ra: 0 };
+          capCur.days += h;
+          capCur.rp = rel.orb.rp; capCur.ra = rel.orb.ra;
+          if (rel.orb.rp > capCur.worstRp) capCur.worstRp = rel.orb.rp;
+          if (!capBest || capCur.days >= capBest.days) capBest = capCur;
+        } else {
+          capCur = null;
+        }
       }
       if (out.died || r * r > 6400) break;
     }
     out.endEnergy = energy({ x: px, y: py, z: pz }, { x: vx, y: vy, z: vz });
+    out.capture = capBest;
     return out;
   }
 
@@ -290,6 +310,51 @@ ORRERY.NBody = (function () {
     var v2 = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
     var r = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
     return 0.5 * v2 - MU / r;
+  }
+
+  /**
+   * Osculating two-body elements from a relative state. Returns null when
+   * the state is unbound. rp/ra are what an insertion HUD wants: the orbit's
+   * periapsis is known the instant the capture burn fires, without waiting
+   * half a period to sample it.
+   */
+  function oscElements(dx, dy, dz, vx, vy, vz, mu) {
+    var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var v2 = vx * vx + vy * vy + vz * vz;
+    var e = 0.5 * v2 - mu / d;
+    if (e >= 0) return null;
+    var a = -mu / (2 * e);
+    var hx = dy * vz - dz * vy, hy = dz * vx - dx * vz, hz = dx * vy - dy * vx;
+    var ecc = Math.sqrt(Math.max(0, 1 - (hx * hx + hy * hy + hz * hz) / (mu * a)));
+    return { a: a, e: ecc, rp: a * (1 - ecc), ra: a * (1 + ecc) };
+  }
+
+  /**
+   * State of (pos, vel) relative to a planet at jd: separation, the planet's
+   * Hill radius at its current solar distance, two-body energy against its
+   * potential, and osculating elements when bound. `bound` — negative energy
+   * inside the Hill sphere — is the game's definition of "captured". The
+   * planet's velocity comes from a central Kepler difference (±0.5 d), which
+   * is accurate to ~1e-8 AU/day; a one-sided difference over a preview step
+   * would drown capture-orbit speeds (~2e-4 AU/day at Mars) in error.
+   */
+  function relPlanet(pos, vel, el, jd) {
+    initSources();
+    var mu = 0;
+    for (var i = 0; i < sources.length; i++) {
+      if (sources[i].el === el) mu = sources[i].mu;
+    }
+    if (!mu) return null;
+    var hp = ORRERY.Kepler.heliocentric(el, jd);
+    var h1 = ORRERY.Kepler.heliocentric(el, jd - 0.5);
+    var h2 = ORRERY.Kepler.heliocentric(el, jd + 0.5);
+    var dx = pos.x - hp.x, dy = pos.y - hp.y, dz = pos.z - hp.z;
+    var vx = vel.x - (h2.x - h1.x), vy = vel.y - (h2.y - h1.y), vz = vel.z - (h2.z - h1.z);
+    var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var rT = Math.sqrt(hp.x * hp.x + hp.y * hp.y + hp.z * hp.z);
+    var hill = rT * Math.pow(mu / (3 * MU), 1 / 3);
+    var orb = oscElements(dx, dy, dz, vx, vy, vz, mu);
+    return { d: d, hill: hill, mu: mu, orb: orb, bound: !!orb && d < hill };
   }
 
   function remove(p) {
@@ -313,6 +378,7 @@ ORRERY.NBody = (function () {
     preview: preview,
     previewLive: previewLive,
     energy: energy,
+    relPlanet: relPlanet,
     remove: remove,
     clear: clear
   };
