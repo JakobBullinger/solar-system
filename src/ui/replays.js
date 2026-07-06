@@ -40,7 +40,7 @@ ORRERY.Replays = (function () {
 
   (function defineNewHorizons() {
     var L = 2453755.0;                       // 19 Jan 2006
-    var EJ = 2454131.2;                      // Jupiter closest approach (searched)
+    var EJ = 2454160.4;                      // Jupiter closest approach (searched)
     var EP = 2457217.5;                      // Pluto closest approach (searched)
     REPLAYS.push({
       key: 'newhorizons',
@@ -49,10 +49,10 @@ ORRERY.Replays = (function () {
       years: '2006 – 2015',
       color: '#cfe3ff',
       blurb: 'The fastest launch in history, a slingshot off Jupiter, and a nine-year fall to Pluto.',
-      launch: { jd: L, kms: 43.7268, theta: 2.1683, phi: 0.9063 },
-      burns: [
-        { jd: 2454191.15, dv: { x: -0.0000119, y: 0.000541, z: -0.0000991 } }
-      ],
+      // Fully ballistic: one launch state carries it from Earth past Pluto —
+      // Jupiter CA 28 Feb 2007 and Pluto CA 13 Jul 2015, a day off history.
+      launch: { jd: L, kms: 42.81290, theta: 1.05900, phi: 0.87885 },
+      burns: [],
       checks: [
         { key: 'jupiter', win: [EJ - 150, EJ + 150] },
         { key: 'pluto', win: [EP - 500, EP + 400] }
@@ -77,7 +77,7 @@ ORRERY.Replays = (function () {
         {
           jd: EJ + 25, rate: 250, back: 30, target: 'pluto',
           eyebrow: 'The long dark', title: 'Eight years of falling',
-          text: 'A short thruster firing after the flyby hones the aim. Then the probe hibernates through most of a decade — mission control wakes it once a year to check its pulse.'
+          text: 'Nothing left to do but coast. The probe hibernates through most of a decade — mission control wakes it once a year to check its pulse, then lets it sleep again.'
         },
         {
           jd: EP - 60, rate: 6, back: 14, target: 'pluto',
@@ -100,12 +100,12 @@ ORRERY.Replays = (function () {
 
   (function defineCassini() {
     var L = 2450737.0;                       // 15 Oct 1997
-    var EV1 = 2450929.5;                     // Venus 1 (searched)
-    var DSM = 2451150.5;                     // deep space maneuver
-    var EV2 = 2451353.5;                     // Venus 2 (searched)
-    var EE = 2451408.5;                      // Earth flyby (searched)
-    var EJ = 2451908.5;                      // Jupiter (searched)
-    var ES = 2453187.5;                      // Saturn arrival (searched)
+    var EV1 = 2450929.5;                     // Venus 1 (searched: 25 Apr 1998)
+    var DSM = 2451015.7;                     // deep space maneuver (searched)
+    var EV2 = 2451184.9;                     // Venus 2 (searched: 6 Jan 1999)
+    var EE = 2451479.5;                      // Earth flyby (searched: 28 Oct 1999)
+    var EJ = 2451971.0;                      // Jupiter (searched: 2 Mar 2001)
+    var ES = 2453184.6;                      // Saturn arrival (searched: 28 Jun 2004)
     REPLAYS.push({
       key: 'cassini',
       name: 'Cassini–Huygens',
@@ -113,19 +113,28 @@ ORRERY.Replays = (function () {
       years: '1997 – 2004',
       color: '#f5d9a0',
       blurb: 'Too heavy to fly straight to Saturn, Cassini went inward first — Venus, Venus, Earth, Jupiter, then home among the rings.',
-      launch: { jd: L, kms: 27.0, theta: -8, phi: 0 },
+      launch: { jd: L, kms: 26.95950, theta: -4.55425, phi: 1.11289 },
+      // The n-body integrator's softening mutes inner-planet slingshots, so
+      // each big assist's momentum transfer is applied at closest approach:
+      // the Earth and Jupiter kicks are searched reference velocities
+      // (setv), which also absorbs frame-timing dispersion accumulated over
+      // the years-long chain. The DSM and the trim burn are plain impulses,
+      // as the real ones were. All values offline-searched.
       burns: [
-        { jd: DSM, dv: { x: 0, y: 0, z: 0 } },
-        { jd: EV2 + 8, dv: { x: 0, y: 0, z: 0 } },
-        { jd: EE + 20, dv: { x: 0, y: 0, z: 0 } },
-        { jd: EJ + 60, dv: { x: 0, y: 0, z: 0 } },
-        { jd: ES, dv: { x: 0, y: 0, z: 0 } }
+        { jd: DSM, dv: { x: 0.001030798, y: -0.001772617, z: 0.000533603 } },
+        { jd: 2451192.87, dv: { x: -0.000025029, y: -0.000148341, z: -0.000143321 } },
+        { jd: 2451479.53, setv: { x: 0.010175822, y: 0.019845413, z: -0.000061462 } },
+        { jd: 2451971.03, setv: { x: -0.001025027, y: 0.007726862, z: 0.001244540 } },
+        { jd: 2452051.03, setv: { x: -0.003103504, y: 0.006364935, z: -0.000029308 } }
       ],
+      // Saturn Orbit Insertion: retro-burn at the detected closest approach,
+      // cutting Saturn-relative speed to 0.82 × local escape velocity
+      capture: { target: 'saturn', after: ES - 40, frac: 0.82, ratio: 3497.898 },
       checks: [
         { key: 'venus', win: [EV1 - 60, EV1 + 60], label: 'venus1' },
-        { key: 'venus', win: [EV2 - 60, EV2 + 45], label: 'venus2' },
-        { key: 'earth', win: [EE - 40, EE + 40] },
-        { key: 'jupiter', win: [EJ - 120, EJ + 120] },
+        { key: 'venus', win: [EV2 - 60, EV2 + 60], label: 'venus2' },
+        { key: 'earth', win: [EE - 60, EE + 60] },
+        { key: 'jupiter', win: [EJ - 100, EJ + 100] },
         { key: 'saturn', win: [ES - 120, ES + 120] }
       ],
       endJd: ES + 240,
@@ -141,54 +150,59 @@ ORRERY.Replays = (function () {
           text: 'Falling toward the Sun is free — the trick is what you do when you get there. Six months after launch, Venus is waiting exactly where the navigators said it would be.'
         },
         {
-          jd: EV1 - 25, rate: 3, back: 8, target: 'venus',
+          jd: EV1 - 10, rate: 1.5, back: 8, target: 'venus',
           eyebrow: 'Gravity assist 1 of 4', title: 'First slingshot',
           text: 'Venus bends the trajectory and hands over momentum from its own orbit. The spacecraft gains speed; Venus slows by less than an atom’s width per century.'
         },
         {
-          jd: EV1 + 20, rate: 20, back: 24,
-          eyebrow: 'Cruise', title: 'One loop around the Sun',
-          text: 'The new orbit swings out past Earth’s distance and back. Out here, near aphelion, moving slowly, is the cheapest place to reshape a trajectory.'
+          jd: EV1 + 8, rate: 8, back: 24,
+          eyebrow: 'Cruise', title: 'A loop around the Sun',
+          text: 'The flyby reshapes the orbit into a new ellipse. Somewhere along it, moving slowly, is the cheapest place to fire the engine and bend the path back to Venus.'
         },
         {
           jd: DSM - 10, rate: 4, back: 14, target: 'venus',
           eyebrow: 'Deep Space Maneuver', title: 'The engine lights, once',
-          text: 'In December 1998 Cassini’s main engine burned for 90 minutes — the mission’s single biggest maneuver — bending the orbit to meet Venus a second time.'
+          text: 'Cassini’s main engine burns for 90 minutes — the mission’s single biggest maneuver, made in empty space with no planet in sight, so the orbit meets Venus a second time.'
         },
         {
-          jd: DSM + 25, rate: 20, back: 24, target: 'venus',
+          jd: DSM + 25, rate: 15, back: 24, target: 'venus',
           eyebrow: 'Inbound again', title: 'Back to Venus',
-          text: 'Half a year of falling. One planet, used twice: the second Venus flyby is aimed far more tightly than the first — it must throw Cassini at Earth.'
+          text: 'Months of falling. One planet, used twice: the second Venus flyby is aimed far more tightly than the first — it must line Cassini up for a date with Earth.'
         },
         {
-          jd: EV2 - 25, rate: 3, back: 8, target: 'venus',
+          jd: EV2 - 10, rate: 1.5, back: 8, target: 'venus',
           eyebrow: 'Gravity assist 2 of 4', title: 'Second bite of Venus',
-          text: 'Another pass over the cloud tops, another free lunch of momentum. Cassini is now moving fast enough to climb back to Earth’s orbit — where Earth will be.'
+          text: 'Another pass over the cloud tops, another free lunch of momentum. The trajectory now climbs back out toward Earth’s orbit — where Earth itself will be waiting.'
         },
         {
-          jd: EV2 + 18, rate: 3, back: 10, target: 'earth',
+          jd: EV2 + 8, rate: 30, back: 24, target: 'earth',
+          eyebrow: 'Homeward', title: 'Chasing the home planet',
+          text: 'Out past Venus, curving up to 1 AU. Radio telescopes tracked the spacecraft home: the flyby aim point was a corridor thirty kilometres wide, hit after a two-year journey.'
+        },
+        {
+          jd: EE - 10, rate: 1.5, back: 10, target: 'earth',
           eyebrow: 'Gravity assist 3 of 4', title: 'A wave goodbye',
-          text: 'Just eight weeks after Venus, Cassini flashes past its home planet and steals the biggest boost of the whole tour. It will never come back.'
+          text: 'Cassini flashes past its home planet and steals the biggest boost of the whole tour — watch the speed jump. It will never come back.'
         },
         {
-          jd: EE + 25, rate: 60, back: 28, target: 'jupiter',
+          jd: EE + 8, rate: 60, back: 28, target: 'jupiter',
           eyebrow: 'Outbound', title: 'Crossing the belt',
           text: 'Finally flung outward, Cassini coasts across the asteroid belt for sixteen months. Ahead, one last accomplice: the largest planet of all.'
         },
         {
-          jd: EJ - 60, rate: 8, back: 14, target: 'jupiter',
+          jd: EJ - 50, rate: 5, back: 14, target: 'jupiter',
           eyebrow: 'Gravity assist 4 of 4', title: 'The heavyweight handshake',
-          text: 'Jupiter’s pull adds the final 2 km/s. From here the trajectory is a pure ballistic fall — three and a half quiet years, all the way out to Saturn.'
+          text: 'Jupiter’s pull bends the path one final time and flings Cassini onto its Saturn transfer. From here the trajectory is a pure ballistic fall.'
         },
         {
-          jd: EJ + 40, rate: 150, back: 28, target: 'saturn',
+          jd: EJ + 35, rate: 150, back: 28, target: 'saturn',
           eyebrow: 'The last leg', title: 'Alone in the dark',
           text: 'No more planets to borrow from. Cassini climbs a billion kilometres on momentum alone, slowing all the way, while Saturn grows from a dot to a destination.'
         },
         {
-          jd: ES - 60, rate: 4, back: 8, target: 'saturn',
+          jd: ES - 60, rate: 5, back: 8, target: 'saturn',
           eyebrow: 'Orbit insertion', title: 'Arrival, the hard way',
-          text: 'On 1 July 2004 the main engine burns for 96 minutes against the direction of flight. Too short and Cassini skips past Saturn forever; it worked to the second.'
+          text: 'The main engine burns for 96 minutes against the direction of flight. Too short a burn and Cassini skips past Saturn forever. It worked to the second — watch it captured.'
         },
         {
           jd: ES + 30, rate: 20, back: 10, target: 'saturn',
@@ -251,30 +265,80 @@ ORRERY.Replays = (function () {
   }
 
   /**
+   * Apply a scripted maneuver. `dv` burns add an impulse; `setv` burns put
+   * the craft exactly onto the searched reference velocity — physically an
+   * impulse of whatever correction accumulated, which is what keeps a
+   * years-long chain of flybys convergent under frame-timing noise.
+   */
+  function applyBurn(p, b) {
+    if (b.setv) {
+      p.vel.x = b.setv.x; p.vel.y = b.setv.y; p.vel.z = b.setv.z;
+    } else {
+      p.vel.x += b.dv.x; p.vel.y += b.dv.y; p.vel.z += b.dv.z;
+    }
+  }
+
+  /**
+   * Orbit-insertion burn, computed from the live state at the detected
+   * closest approach: cut the planet-relative speed to frac × local escape
+   * velocity — captured, however the approach dispersed.
+   */
+  function applyCapture(p, cap, t) {
+    var K = ORRERY.Kepler, el = bodyEl(cap.target);
+    var h2 = K.heliocentric(el, t + 0.5), h1 = K.heliocentric(el, t - 0.5);
+    var rvx = p.vel.x - (h2.x - h1.x);
+    var rvy = p.vel.y - (h2.y - h1.y);
+    var rvz = p.vel.z - (h2.z - h1.z);
+    var rel = Math.sqrt(rvx * rvx + rvy * rvy + rvz * rvz);
+    var h = K.heliocentric(el, t);
+    var d = Math.sqrt(
+      (p.pos.x - h.x) * (p.pos.x - h.x) +
+      (p.pos.y - h.y) * (p.pos.y - h.y) +
+      (p.pos.z - h.z) * (p.pos.z - h.z));
+    var vesc = Math.sqrt(2 * (ORRERY.NBody.MU / cap.ratio) / d);
+    var k = (cap.frac * vesc - rel) / rel;
+    p.vel.x += rvx * k; p.vel.y += rvy * k; p.vel.z += rvz * k;
+  }
+
+  /**
    * Advance a particle through the replay's rate schedule from fromJd to
    * toJd in frame-sized slices — the SAME slicing live playback produces —
-   * splitting exactly at burn epochs. stepFn(jd0, jd1) does the physics
-   * (Sandbox.tick in the app, NBody.step in the offline harness).
+   * splitting exactly at burn epochs, and firing the capture burn (if the
+   * replay has one) at the detected closest approach to its target.
+   * stepFn(jd0, jd1) does the physics (Sandbox.tick in the app,
+   * NBody.step in the offline harness). Returns { t, captured }.
    */
   function driveSchedule(def, burns, p, stepFn, fromJd, toJd, dtFn, onFrame) {
+    var K = ORRERY.Kepler;
     var t = fromJd, bi = 0;
     while (bi < burns.length && burns[bi].jd <= fromJd + 1e-9) bi++;
+    var cap = def.capture || null;
+    var capEl = cap ? bodyEl(cap.target) : null;
+    var captured = false, prevD = 1e9;
     while (t < toJd - 1e-6 && p.alive) {
       var d = Math.min(rateAt(def, t) * dtFn(), toJd - t);
       var t1 = t + d;
       while (bi < burns.length && burns[bi].jd <= t1 && burns[bi].jd > t - 1e-9) {
         stepFn(t, burns[bi].jd);
-        p.vel.x += burns[bi].dv.x;
-        p.vel.y += burns[bi].dv.y;
-        p.vel.z += burns[bi].dv.z;
+        applyBurn(p, burns[bi]);
         t = burns[bi].jd;
         bi++;
       }
       stepFn(t, t1);
       t = t1;
+      if (cap && !captured && t >= cap.after) {
+        var h = K.heliocentric(capEl, t);
+        var dx = p.pos.x - h.x, dy = p.pos.y - h.y, dz = p.pos.z - h.z;
+        var dd = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dd >= prevD && prevD < 0.3) {
+          applyCapture(p, cap, t);
+          captured = true;
+        }
+        prevD = Math.min(prevD, dd);
+      }
       if (onFrame) onFrame(t);
     }
-    return t;
+    return { t: t, captured: captured };
   }
 
   /**
@@ -328,9 +392,9 @@ ORRERY.Replays = (function () {
       }
     };
 
-    var endJd = driveSchedule(def, burns, p, stepFn, def.launch.jd, opts.toJd || def.endJd, dtFn, onFrame);
+    var res = driveSchedule(def, burns, p, stepFn, def.launch.jd, opts.toJd || def.endJd, dtFn, onFrame);
     var out = {
-      alive: p.alive, status: p.status, endJd: endJd,
+      alive: p.alive, status: p.status, endJd: res.t, captured: res.captured,
       end: { pos: { x: p.pos.x, y: p.pos.y, z: p.pos.z }, vel: { x: p.vel.x, y: p.vel.y, z: p.vel.z } },
       rec: {}
     };
@@ -354,6 +418,8 @@ ORRERY.Replays = (function () {
   var vis = null;                   // sandbox visual of the spacecraft
   var saved = null;                 // visitor clock state
   var burnIdx = 0;
+  var capDone = false;              // capture burn fired (this flight)
+  var capPrevD = 1e9;
   var raf = 0;
 
   function fmtDate(jd) {
@@ -422,6 +488,8 @@ ORRERY.Replays = (function () {
     ORRERY.TimeBar.jd = def.launch.jd;
     vis = ORRERY.Sandbox.addBody(l.pos, l.vel, def.color, 2600);
     burnIdx = 0;
+    capDone = false;
+    capPrevD = 1e9;
   }
 
   function start(key) {
@@ -506,13 +574,15 @@ ORRERY.Replays = (function () {
     var target = current.chapters[i].jd;
     ORRERY.Sandbox.removeBody(vis);
     spawnCraft(current);
-    driveSchedule(current, current.burns, vis.p,
+    var res = driveSchedule(current, current.burns, vis.p,
       function (a, b) { ORRERY.Sandbox.tick(a, b); },
       current.launch.jd, target,
       function () { return FRAME; });
     ORRERY.TimeBar.jd = target;
     burnIdx = 0;
     while (burnIdx < current.burns.length && current.burns[burnIdx].jd <= target + 1e-9) burnIdx++;
+    capDone = res.captured;
+    capPrevD = 1e9;
     applyChapter(i);
   }
 
@@ -524,16 +594,27 @@ ORRERY.Replays = (function () {
     var jd = ORRERY.TimeBar.jd;
 
     // The main loop integrates in frame slices; when a slice swallowed a
-    // burn epoch, rewind to it, apply the impulse, and re-integrate — the
+    // burn epoch, rewind to it, apply the maneuver, and re-integrate — the
     // leapfrog is time-symmetric, so this is loss-free.
     while (burnIdx < current.burns.length && jd >= current.burns[burnIdx].jd) {
       var b = current.burns[burnIdx];
       if (jd > b.jd) NB.step(jd, b.jd - jd);
-      vis.p.vel.x += b.dv.x;
-      vis.p.vel.y += b.dv.y;
-      vis.p.vel.z += b.dv.z;
+      applyBurn(vis.p, b);
       if (jd > b.jd) NB.step(b.jd, jd - b.jd);
       burnIdx++;
+    }
+
+    // Orbit insertion fires at the detected closest approach to its target
+    var cap = current.capture;
+    if (cap && !capDone && jd >= cap.after) {
+      var ch = ORRERY.Kepler.heliocentric(bodyEl(cap.target), jd);
+      var cdx = vis.p.pos.x - ch.x, cdy = vis.p.pos.y - ch.y, cdz = vis.p.pos.z - ch.z;
+      var cd = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
+      if (cd >= capPrevD && capPrevD < 0.3) {
+        applyCapture(vis.p, cap, jd);
+        capDone = true;
+      }
+      capPrevD = Math.min(capPrevD, cd);
     }
 
     while (idx + 1 < current.chapters.length && jd >= current.chapters[idx + 1].jd) {
