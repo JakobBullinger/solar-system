@@ -75,6 +75,26 @@ ORRERY.Missions = (function () {
       budget: 11.5, par: 11.1, limitY: 5.5, epoch: 2443330.5,
       desc: 'Fly by Jupiter under 0.1 AU and let its gravity fling you out across Saturn’s orbit (9.2 AU) — within 5½ years.',
       hint: 'The clock is set to the 1977 window Voyager used. Aim at where Jupiter WILL be — the gold arc shows when the slingshot works. No burn on this budget coasts that far that fast alone.'
+    },
+    {
+      key: 'marsorbit', name: 'Mars Orbiter', special: 'orbiter', targetKey: 'mars',
+      rpMax: 0.005, holdDays: 60,
+      budget: 8, par: 6.0, limitY: 3, previewSteps: 550,
+      desc: 'Brake into orbit around Mars — periapsis under 0.005 AU — and hold it for 60 days.',
+      hint: 'Flying past is easy; staying costs a second burn. Skim Mars, then click the ' +
+        'arc at closest approach and burn against your relative motion until you’re caught. ' +
+        'One catch: your burns are in-plane, so arrive while Mars is crossing the ecliptic ' +
+        '(it does every ~11 months) — miss the crossing and the planet sits above your reach.'
+    },
+    {
+      key: 'ringside', name: 'Ringside', special: 'orbiter', targetKey: 'saturn',
+      rpMax: 0.04, holdDays: 90,
+      budget: 15, par: 12.5, limitY: 7, epoch: 2461771.5, previewSteps: 1280,
+      desc: 'Be captured by Saturn: a bound orbit with periapsis inside 0.04 AU, held 90 days.',
+      hint: 'Saturn rides up to 0.4 AU off the ecliptic — no in-plane probe gets caught out ' +
+        'there. It crosses the plane in June 2034; the clock starts in 2028 so you can ride ' +
+        'a transfer that arrives on the crossing. Keep 2–3 km/s for the insertion burn at ' +
+        'closest approach — the deeper you dive, the cheaper the catch.'
     }
   ];
 
@@ -248,6 +268,28 @@ ORRERY.Missions = (function () {
         Math.round(Math.min(bestHeld, current.holdDays)) + ' / ' + current.holdDays + ' d';
       if (bestL) {
         K.toScene(bestL, V1);
+        targetMark.position.copy(V1);
+        targetMark.visible = true;
+      }
+    } else if (current.special === 'orbiter') {
+      // Win = a bound streak (previewLive capture tracking) long enough to
+      // hold, whose worst osculating periapsis stays under the ceiling
+      var cap = pv.capture;
+      good = !pv.died && !!cap && cap.days >= current.holdDays &&
+        cap.worstRp <= current.rpMax;
+      if (cap) {
+        readout = 'captured: peri ' + cap.rp.toFixed(4) + ' × apo ' + cap.ra.toFixed(4) +
+          ' AU · holds ' + Math.round(Math.min(cap.days, current.holdDays)) + ' / ' +
+          current.holdDays + ' d';
+        if (cap.worstRp > current.rpMax) {
+          readout += ' · peri over ' + current.rpMax + ' AU!';
+        }
+      } else {
+        readout = 'closest ' + (pv.target ? pv.target.d.toFixed(4) : '—') +
+          ' AU · not captured';
+      }
+      if (pv.target) {
+        K.toScene(pv.target, V1);
         targetMark.position.copy(V1);
         targetMark.visible = true;
       }
@@ -582,6 +624,25 @@ ORRERY.Missions = (function () {
       if (!p.alive && p.status === 'sun') { finish(false, 'Consumed by the Sun.'); return; }
       var rr = Math.sqrt(p.pos.x * p.pos.x + p.pos.y * p.pos.y + p.pos.z * p.pos.z);
       if (rr > 1.5 && NB.energy(p.pos, p.vel) > 0) { finish(true); return; }
+    } else if (current.special === 'orbiter') {
+      if (!p.alive) { finish(false, p.status === 'sun' ? 'Consumed by the Sun.' : 'It left the solar system.'); return; }
+      var ro = NB.relPlanet(p.pos, p.vel, targetEl(), jd);
+      if (ro.d < attempt.closest) attempt.closest = ro.d;
+      if (ro.bound) {
+        // Same bound test + osculating rp as the plan preview's capture
+        // tracking; drifting out of the Hill sphere restarts the clock
+        if (!attempt.capStart) { attempt.capStart = jd; attempt.worstRp = 0; }
+        attempt.held = jd - attempt.capStart;
+        if (ro.orb.rp > attempt.worstRp) attempt.worstRp = ro.orb.rp;
+        attempt.rp = ro.orb.rp; attempt.ra = ro.orb.ra;
+        if (attempt.held >= current.holdDays && attempt.worstRp <= current.rpMax) {
+          finish(true);
+          return;
+        }
+      } else if (attempt.capStart) {
+        attempt.capStart = null;
+        attempt.held = 0;
+      }
     } else {
       if (!p.alive) { finish(false, p.status === 'sun' ? 'Consumed by the Sun.' : 'It left the solar system.'); return; }
       var t = K.heliocentric(targetEl(), jd);
@@ -618,6 +679,12 @@ ORRERY.Missions = (function () {
       line += attempt.flybyDone
         ? ' · Jupiter flyby ✓ — now coasting outward'
         : (attempt.closest < 1e8 ? ' · Jupiter closest: ' + attempt.closest.toFixed(3) + ' AU' : '');
+    } else if (current.special === 'orbiter') {
+      line += attempt.capStart
+        ? ' · in orbit: peri ' + attempt.rp.toFixed(4) + ' × apo ' + attempt.ra.toFixed(4) +
+          ' AU · ' + Math.round(attempt.held) + ' / ' + current.holdDays + ' d' +
+          (attempt.worstRp > current.rpMax ? ' · periapsis too high!' : '')
+        : (attempt.closest < 1e8 ? ' · closest so far: ' + attempt.closest.toFixed(4) + ' AU' : '');
     } else if (current.special !== 'escape' && attempt.closest < 1e8) {
       line += ' · closest so far: ' + attempt.closest.toFixed(3) + ' AU';
     }
