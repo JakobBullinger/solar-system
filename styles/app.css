@@ -700,6 +700,137 @@ button:focus-visible {
 .sb-speed.show { opacity: 1; }
 .sb-speed.esc { color: #ff8585; border-color: rgba(255, 133, 133, 0.35); }
 
+/* ---- Mission Designer ------------------------------------------------------------ */
+.toggle-missions {
+  color: #8ce8dd;
+  border-color: rgba(103, 227, 210, 0.4);
+}
+.toggle-missions:hover { border-color: rgba(103, 227, 210, 0.75); }
+
+.missions-hud {
+  position: fixed;
+  left: 16px;
+  bottom: 148px;
+  z-index: 11;
+  width: 290px;
+  max-width: calc(100vw - 24px);
+  padding: 14px 16px;
+  background: var(--glass);
+  border: 1px solid rgba(103, 227, 210, 0.28);
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.missions-hud.show { opacity: 1; transform: none; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .missions-hud { transition: none; }
+}
+body.touring .missions-hud, body.touring .ms-tip { display: none; }
+
+.ms-title {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: #8ce8dd;
+}
+.ms-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ms-row:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--line); }
+.ms-stars { font-size: 11px; color: var(--amber); letter-spacing: 0.1em; white-space: nowrap; }
+.ms-star-dim { color: rgba(140, 160, 200, 0.25); }
+.ms-name { flex: 1; font-size: 13px; color: var(--text); }
+.ms-budget {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ms-desc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(233, 238, 247, 0.88);
+  margin-bottom: 9px;
+}
+.ms-hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 9px;
+}
+.ms-gold { color: #ffd27f; }
+.ms-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 11px;
+}
+.ms-meta strong { color: var(--text); font-family: var(--mono); font-size: 11.5px; }
+.ms-flight {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: #8ce8dd;
+  margin-bottom: 9px;
+}
+.ms-result-stars {
+  font-size: 26px;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  margin-bottom: 9px;
+}
+.ms-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.ms-actions button {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ms-actions button:hover { color: var(--text); }
+.ms-actions .ms-primary {
+  color: #041016;
+  font-weight: 600;
+  background: #8ce8dd;
+  border-color: #8ce8dd;
+}
+.ms-actions .ms-primary:hover { background: #a8f0e7; color: #041016; }
+
+.ms-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text);
+  background: rgba(6, 9, 16, 0.88);
+  border: 1px solid rgba(103, 227, 210, 0.35);
+  border-radius: 7px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.ms-tip.show { opacity: 1; }
+.ms-tip.good { border-color: rgba(255, 210, 127, 0.7); }
+.ms-tip.good strong { color: #ffd27f; }
+.ms-tip strong { font-family: var(--mono); color: #8ce8dd; }
+
 /* ---- "Tonight" teaser pill ------------------------------------------------------ */
 .tonight-pill {
   position: fixed;

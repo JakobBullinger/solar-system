@@ -152,8 +152,10 @@ ORRERY.Sandbox = (function () {
     line.frustumCulled = false;
 
     group.add(sprite, line);
-    visuals.push({ p: p, sprite: sprite, line: line, count: 0, trail: trail });
+    var vis = { p: p, sprite: sprite, line: line, count: 0, trail: trail };
+    visuals.push(vis);
     updateHud();
+    return vis;
   }
 
   function removeVisual(vis) {
@@ -395,7 +397,8 @@ ORRERY.Sandbox = (function () {
     tick: tick,
     clear: clearAll,
     runVoyager: function () { PRESETS.voyager(); },
-    addBody: function (pos, vel, color) { spawn(pos, vel, color); },
+    addBody: function (pos, vel, color, trailLen) { return spawn(pos, vel, color, trailLen); },
+    removeBody: function (vis) { if (visuals.indexOf(vis) !== -1) { removeVisual(vis); updateHud(); } },
     serialize: serialize,
     get active() { return active; }
   };

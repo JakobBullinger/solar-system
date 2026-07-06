@@ -107,6 +107,7 @@
     ),
     onExitCam: function () { flyT = 1; }   // cancel any stale fly tween
   });
+  ORRERY.Missions.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
   ORRERY.Tour.init({
     registry: registry,
     focus: focus,
@@ -203,6 +204,7 @@
     if (ORRERY.Sandbox.active) return; // sandbox owns the pointer while armed
     if (ORRERY.Tour.active) return;    // no dossier pop-ups mid-tour
     if (ORRERY.Ride.active) return;    // the ride owns the camera
+    if (ORRERY.Missions.aiming) return; // aiming owns the pointer
     if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return; // drag, not click
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -262,6 +264,7 @@
     var daysSinceEpoch = jd - K.J2000;
 
     ORRERY.Sandbox.tick(jdPrev, jd);
+    ORRERY.Missions.tick(jd);
     jdPrev = jd;
 
     // Positions from the physics

@@ -89,7 +89,8 @@ ORRERY.NBody = (function () {
       acc: { x: 0, y: 0, z: 0 },
       color: color,
       alive: true,
-      status: 'orbiting'
+      status: 'orbiting',
+      minR: Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
     };
     var src = srcAt(ORRERY.TimeBar.jd, makeSrcBuffer());
     accel(p.pos.x, p.pos.y, p.pos.z, src, p.acc);
@@ -140,6 +141,8 @@ ORRERY.NBody = (function () {
         p.alive = false; p.status = 'sun'; lost.sun++;
       } else {
         var r2 = p.pos.x * p.pos.x + p.pos.y * p.pos.y + p.pos.z * p.pos.z;
+        var rNow = Math.sqrt(r2);
+        if (rNow < p.minR) p.minR = rNow;
         if (r2 > ESCAPE_R * ESCAPE_R) { p.alive = false; p.status = 'escaped'; lost.escaped++; }
       }
       remaining -= hl;
@@ -185,6 +188,66 @@ ORRERY.NBody = (function () {
     return out;
   }
 
+  /**
+   * Mission-grade preview: unlike preview(), the planets MOVE during the
+   * integration, and the pass is scored against a target — closest approach
+   * to `targetEl` (with the moment and both positions), minimum solar
+   * distance, death, and final orbital energy. This is what makes aiming at
+   * a planet that won't be there for another year a playable game.
+   */
+  function previewLive(pos, vel, jd0, steps, h, targetEl, every) {
+    initSources();
+    var src = makeSrcBuffer();
+    var ti = -1;
+    for (var k = 0; k < sources.length; k++) {
+      if (sources[k].el === targetEl) ti = k;
+    }
+    var px = pos.x, py = pos.y, pz = pos.z;
+    var vx = vel.x, vy = vel.y, vz = vel.z;
+    var a = { x: 0, y: 0, z: 0 };
+    srcAt(jd0, src);
+    accel(px, py, pz, src, a);
+    var out = {
+      points: [], died: null, minR: 1e9, maxR: 0, endEnergy: 0,
+      target: ti >= 0 ? { d: 1e9, jd: jd0, x: 0, y: 0, z: 0 } : null
+    };
+    for (var s = 1; s <= steps; s++) {
+      srcAt(jd0 + s * h, src);
+      // Adaptive inner steps (same rule as advance()) so a sun-grazer's
+      // perihelion is resolved instead of leapt across
+      var remaining = h, guard = 0, r = 0;
+      while (remaining !== 0 && guard++ < 500) {
+        r = Math.sqrt(px * px + py * py + pz * pz);
+        var hMax = 0.08 * Math.sqrt(r * r * r / MU) + 1e-4;
+        var hl = remaining;
+        if (Math.abs(hl) > hMax) hl = remaining > 0 ? hMax : -hMax;
+        vx += 0.5 * hl * a.x; vy += 0.5 * hl * a.y; vz += 0.5 * hl * a.z;
+        px += hl * vx; py += hl * vy; pz += hl * vz;
+        accel(px, py, pz, src, a);
+        vx += 0.5 * hl * a.x; vy += 0.5 * hl * a.y; vz += 0.5 * hl * a.z;
+        r = Math.sqrt(px * px + py * py + pz * pz);
+        if (r < out.minR) out.minR = r;
+        if (r > out.maxR) out.maxR = r;
+        if (r < SUN_R) { out.died = 'sun'; break; }
+        remaining -= hl;
+      }
+
+      if (s % every === 0) out.points.push({ x: px, y: py, z: pz });
+      if (ti >= 0) {
+        var t = src[ti];
+        var d = Math.sqrt((px - t.x) * (px - t.x) + (py - t.y) * (py - t.y) + (pz - t.z) * (pz - t.z));
+        if (d < out.target.d) {
+          out.target.d = d;
+          out.target.jd = jd0 + s * h;
+          out.target.x = t.x; out.target.y = t.y; out.target.z = t.z;
+        }
+      }
+      if (out.died || r * r > 6400) break;
+    }
+    out.endEnergy = energy({ x: px, y: py, z: pz }, { x: vx, y: vy, z: vz });
+    return out;
+  }
+
   /** Specific orbital energy vs the Sun: negative = bound. */
   function energy(pos, vel) {
     var v2 = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
@@ -211,6 +274,7 @@ ORRERY.NBody = (function () {
     addParticle: addParticle,
     step: step,
     preview: preview,
+    previewLive: previewLive,
     energy: energy,
     remove: remove,
     clear: clear
