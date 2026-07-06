@@ -1,0 +1,46 @@
+# CI — build, unit tests, and a headless-Chrome render smoke test.
+#
+# Mirrors the repo's manual verification bar (CLAUDE.md / ORCHESTRATION.md):
+#   1. node build.js exits clean
+#   2. npm test green (test/run.js — physics, almanac, challenge links,
+#      and the baked-trajectory regression guard)
+#   3. dist/index.html actually renders under headless Chrome + SwiftShader
+#      (plain --disable-gpu yields a black canvas), asserted by sampling the
+#      screenshot's pixels; the PNG is uploaded as a build artifact.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: node build.js
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Headless Chrome smoke screenshot
+        run: |
+          google-chrome --headless --no-sandbox --disable-dev-shm-usage \
+            --use-angle=swiftshader --enable-unsafe-swiftshader \
+            --force-prefers-reduced-motion \
+            --window-size=1600,1000 --virtual-time-budget=15000 \
+            --screenshot="$PWD/smoke.png" "file://$PWD/dist/index.html"
+
+      - name: Assert screenshot shows a rendered scene
+        run: node test/ci/check-screenshot.js smoke.png
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshot
+          path: smoke.png
+          if-no-files-found: ignore
