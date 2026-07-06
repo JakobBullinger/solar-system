@@ -41,6 +41,9 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **Sandbox** (top right): drag anywhere in space to launch a body into real
   Sun + 8-planet gravity. Teal preview arc = captured orbit, red = escapes.
   Presets: **★ Voyager grand tour**, Mars transfer, mini belt, sun-diver, interstellar
+- **Ride along**: chase-cam any sandbox body ("Ride along" in the sandbox HUD —
+  launch the Voyager preset and ride the flybys) or a comet (button in its
+  dossier). Scroll adjusts distance, Esc exits
 - **True size** rescales planets to honest ratios vs the Sun
 
 ## Architecture
@@ -68,6 +71,7 @@ src/
   ui/almanac-ui.js       events drawer
   ui/sandbox.js          drag-to-launch, trails, presets, HUD
   ui/tour.js             guided cinematic tour: stops script, captions, choreography
+  ui/ride.js             ride-along chase camera (probes, comets)
   ui/permalink.js        deep links: URL ↔ app state (clock, selection, sandbox)
   main.js                bootstrap: scene graph, render loop, camera, picking
 build.js                 bundler → dist/index.html
@@ -133,10 +137,14 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 7 · Cinematic tour | Guided 8-stop tour: camera choreography via `focus`/`flyHome`, per-stop time rates, Halley-1986 + Voyager-1977 time-travel stops, caption card with auto-advance, UI auto-hide, clock restored on exit |
 | 2026-07-06 | 8 · Worlds up close | Git repo initialized. Custom shaders: day/night terminators, Earth city lights + drifting clouds, atmosphere rims per planet, Saturn ring↔planet mutual shadows, moon transit shadows, limb-darkened animated Sun |
 | 2026-07-06 | 9 · Sharing & mobile | Deep links (URL ↔ full app state incl. sandbox bodies), viewport + PWA meta with data-URI manifest/icon, touch-action + small-screen layout pass, first-visit tour offer |
+| 2026-07-06 | 10 · Ride-along | Chase camera for sandbox probes and comets: ride the Voyager flybys from the probe's shoulder; scroll-zoom, Esc exit, auto-exit on body death, planet-interior avoidance |
 
 ## Ideas / backlog
 
-- Camera-follow for sandbox probes (ride along on the Voyager flybys)
+- "Tonight's sky" retention hook: almanac + current date + location
+- Mission Designer game mode (north star): Δv budget, targets, scoring,
+  shareable challenges via deep links
+- Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
 - Eclipse finder in the almanac
 - Procedural moon textures
