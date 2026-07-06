@@ -1,0 +1,9 @@
+{
+  "name": "solar-system",
+  "private": true,
+  "description": "A live orrery — interactive solar system with real orbital mechanics",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node serve.js"
+  }
+}

@@ -1,0 +1,121 @@
+<title>The Solar System — Live Orrery</title>
+<style>
+{{CSS}}
+</style>
+
+<canvas id="scene" aria-label="Interactive 3D solar system"></canvas>
+<div id="labels"></div>
+
+<header class="masthead">
+  <h1>Solar <em>System</em></h1>
+  <p>A live orrery — planet positions computed from real orbital mechanics.</p>
+</header>
+
+<nav class="toggles" aria-label="View options">
+  <button class="toggle toggle-tour" id="opt-tour">✦ Tour</button>
+  <button class="toggle" id="opt-sandbox">Sandbox</button>
+  <button class="toggle" id="opt-events">Events</button>
+  <button class="toggle" id="opt-orbits">Orbits</button>
+  <button class="toggle" id="opt-labels">Labels</button>
+  <button class="toggle" id="opt-true">True size</button>
+</nav>
+
+<div class="sandbox-hud" id="sandbox-hud">
+  <div class="sb-title">Gravity sandbox</div>
+  <p class="sb-tip">Drag anywhere in space to launch a body into real solar-system
+    gravity. <span class="sb-bound">Teal arc</span> = captured orbit,
+    <span class="sb-esc">red</span> = escapes the Sun.</p>
+  <div class="sb-presets">
+    <button data-preset="voyager" class="sb-featured">★ Voyager grand tour</button>
+    <button data-preset="mars">Mars transfer</button>
+    <button data-preset="belt">Mini belt</button>
+    <button data-preset="grazer">Sun-diver</button>
+    <button data-preset="escape">Interstellar</button>
+  </div>
+  <p class="sb-note" id="sb-note"></p>
+  <div class="sb-status">
+    <span id="sb-count">0 bodies</span>
+    <button id="sb-clear">Clear</button>
+  </div>
+</div>
+<div class="sb-speed" id="sb-speed"></div>
+
+<aside class="events" id="events" aria-hidden="true">
+  <header>
+    <div>
+      <h3>Sky almanac</h3>
+      <span id="ev-from"></span>
+    </div>
+    <button id="ev-refresh" title="Recompute from the current date">↻</button>
+    <button id="ev-close" aria-label="Close almanac">✕</button>
+  </header>
+  <div id="ev-list"></div>
+</aside>
+<div class="scale-note" id="scale-note">
+  <strong>True size mode.</strong> Planet sizes are now honest relative to the Sun.
+  Distances remain compressed — at true scale, Earth would sit 1.6&nbsp;km from
+  a Sun this size.
+</div>
+
+<aside class="panel" id="panel" aria-hidden="true">
+  <button id="p-close" aria-label="Close panel">✕</button>
+  <header>
+    <span id="p-type"></span>
+    <h2 id="p-name"></h2>
+  </header>
+  <p id="p-fact"></p>
+  <div class="p-live" id="p-live"></div>
+  <div id="p-actions"></div>
+  <div class="p-moons" id="p-moons"></div>
+  <div class="p-stats" id="p-stats"></div>
+</aside>
+
+<div class="deck">
+  <div class="rail" id="rail" role="group" aria-label="Bodies"></div>
+  <div class="timebar">
+    <button id="tb-play" aria-label="Pause">❚❚</button>
+    <div class="tb-clock">
+      <span id="tb-date"></span>
+      <span id="tb-time"></span>
+    </div>
+    <div class="tb-speed">
+      <span id="tb-rate"></span>
+      <input type="range" id="tb-slider" min="0" max="1" step="0.001" value="0.5"
+             aria-label="Simulation speed" />
+    </div>
+    <div class="tb-presets">
+      <button data-rate="0.0000115741">Real</button>
+      <button data-rate="0.0416667">1 hr/s</button>
+      <button data-rate="4">4 d/s</button>
+      <button data-rate="60">2 mo/s</button>
+      <button data-rate="365.25">1 yr/s</button>
+    </div>
+    <button id="tb-now">Today</button>
+  </div>
+</div>
+
+<div class="tour" id="tour" aria-hidden="true">
+  <div class="tour-card">
+    <div class="tour-progress"><div id="tour-progress-fill"></div></div>
+    <span class="tour-eyebrow" id="tour-eyebrow"></span>
+    <h3 id="tour-title"></h3>
+    <p id="tour-text"></p>
+    <div class="tour-foot">
+      <div class="tour-dots" id="tour-dots"></div>
+      <div class="tour-nav">
+        <button id="tour-prev" aria-label="Previous stop">◂</button>
+        <button id="tour-next">Next ▸</button>
+        <button id="tour-exit">End tour</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint">Drag to orbit · scroll to zoom · click a planet to visit · <kbd>space</kbd> pauses time</p>
+
+<script>
+{{VENDOR}}
+</script>
+<script>
+{{APP}}
+</script>
