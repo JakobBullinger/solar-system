@@ -149,6 +149,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 10 · Ride-along | Chase camera for sandbox probes and comets: ride the Voyager flybys from the probe's shoulder; scroll-zoom, Esc exit, auto-exit on body death, planet-interior avoidance |
 | 2026-07-06 | 11 · Tonight's sky | Elongation-based visibility for naked-eye planets (real clock, not sim clock), "sky tonight" section in the almanac, load-time teaser pill with next-event countdown, "in Nd" chips on event rows |
 | 2026-07-06 | 12 · Mission Designer | Six missions with Δv budgets, drag-set departure burns, time-accurate aiming preview (moving planets + live closest-approach), star scoring vs par, localStorage bests. All verified winnable by brute-force playtest; Grand Tour '77 anchored to the real Voyager window and verified to require the slingshot |
+| 2026-07-06 | Tooling | CLAUDE.md (architecture + hard-won physics/verification notes) and four Claude Code project skills in `.claude/skills/`: headless-check, playtest-scan, deploy, explain-diff. Levels 13 (challenge links) + 14 (mid-course burns) in development on parallel worktree branches |
 
 ## Ideas / backlog
 
