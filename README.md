@@ -54,6 +54,13 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
   to review the flight plan: click the arc and drag to add a **mid-course
   burn** at that moment of the flight (same budget), then Launch. Stars for
   Δv efficiency; Grand Tour '77 sets the clock to the real Voyager window
+- **Windows** (top right): the Launch Window Lab — a porkchop plot per target
+  planet: departure Δv (color) over 6 years of departure dates × flight time,
+  computed live from the app's own physics via a Lambert solver. Gold valleys
+  are cheap windows (Mars repeats every ~26 months; scrub to 1977 and pick
+  Jupiter to see the window Voyager rode). Hover reads a cell out; click one
+  to set the clock to that departure — Venus/Mars/Jupiter open their mission
+  ready to aim, window pre-found
 - **True size** rescales planets to honest ratios vs the Sun
 
 ## Architecture
@@ -155,6 +162,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 13 · Challenge links | Mission runs are shareable: `?ch=mission,jd,vx,vy,vz,stars` (burn vector as integer micro-AU/day, ~0.002 km/s precision) replays the exact flight as a ghost run under a "Beat this: ★★★ by a friend" banner — no stars banked, budget-validated against forged links — then hands over for a counter-attempt with a beat/matched/still-theirs verdict. Every win grows a "Copy challenge link" action (`challenge.js`); permalink freezes the URL while the ghost flies; classic `?jd/body` + `#sb=` links untouched. Round-trip verified headless: a 3★ Mars link found by offline search replays to the same 3★ and regenerates a byte-identical link |
 | 2026-07-06 | Tooling | ORCHESTRATION.md: multi-agent worktree setup (roles, filesystem protocol, merge order, two-layer verification bar) + planned v2 PR-based flow with CI. Level 13 merged to main, verified, deployed |
 | 2026-07-06 | 14 · Mid-course burns | Releasing the departure drag now opens a flight plan: click a point on the previewed arc (each point carries its time-of-flight) and drag a second Δv from it — both burns share the mission budget, and the flight integrator splits its step to fire the impulse at its exact jd (`previewLive` gained scheduled burns + timestamped points). Gold-arc verdicts are now time-gated to the mission limit. Icarus par retuned 18.8 → 15: a two-burn scan (raise aphelion, then kill your speed out there) found a flight-confirmed 14.5 km/s minimum vs ~18.2 single-burn, and the hint teaches the trick. All six missions re-verified 3★-able at par by scans + flight-grade sims; a Grand Tour two-burn scan found nothing below its single-burn minimum, so its par stands. Challenge links replay the departure burn only for now |
+| 2026-07-06 | 17 · Launch Window Lab | In-app porkchop plots: a universal-variable Lambert solver (`lambert.js`, bisection on z with y<0 treated as z-too-low so >180° transfers never break the bracket) feeds a Δv heatmap per target — 180 departures × 80 flight times over 6 years, computed in async chunks (UI never blocks), painted progressively, cached per target until the clock drifts. Δv is the game's own currency (heliocentric impulse off Earth's rail), so valleys agree with mission pars. Hover reads out a cell; click sets the clock to that departure, and Venus/Mars/Jupiter open their mission aiming at the pre-found window (`Missions.aimAt`, the module's one new entry point). Verified offline (Mars minima 2.8–3.0 km/s spaced 780–820 d; 1977 Jupiter window 10 d from Voyager 1's launch; Lambert arcs re-integrated in `previewLive` hit within mission tolerances) and headless via CDP (grids, valley-vs-plateau contrast 9.4 vs 33.8 km/s for Sep 1977, click-to-aim flow, zero console errors) |
 
 ## Ideas / backlog
 

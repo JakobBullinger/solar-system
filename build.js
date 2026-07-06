@@ -19,6 +19,7 @@ const MODULES = [
   'src/physics/kepler.js',
   'src/physics/almanac.js',
   'src/physics/nbody.js',
+  'src/physics/lambert.js',
   'src/scene/textures.js',
   'src/scene/shaders.js',
   'src/scene/environment.js',
@@ -32,6 +33,7 @@ const MODULES = [
   'src/ui/tour.js',
   'src/ui/ride.js',
   'src/ui/missions.js',
+  'src/ui/porkchop.js',
   'src/ui/challenge.js',
   'src/ui/permalink.js',
   'src/main.js'
