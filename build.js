@@ -30,6 +30,7 @@ const MODULES = [
   'src/ui/almanac-ui.js',
   'src/ui/sandbox.js',
   'src/ui/tour.js',
+  'src/ui/ride.js',
   'src/ui/permalink.js',
   'src/main.js'
 ];

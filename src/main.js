@@ -98,6 +98,15 @@
     if (registry[ev.bodyKey]) select(registry[ev.bodyKey]);
   });
   ORRERY.Sandbox.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
+  ORRERY.Ride.init({
+    camera: camera,
+    controls: controls,
+    canvas: canvas,
+    avoid: [{ obj: sun, radius: DATA.SUN.sceneRadius }].concat(
+      planets.map(function (g) { return { obj: g, radius: g.userData.enhancedRadius }; })
+    ),
+    onExitCam: function () { flyT = 1; }   // cancel any stale fly tween
+  });
   ORRERY.Tour.init({
     registry: registry,
     focus: focus,
@@ -193,6 +202,7 @@
   canvas.addEventListener('pointerup', function (e) {
     if (ORRERY.Sandbox.active) return; // sandbox owns the pointer while armed
     if (ORRERY.Tour.active) return;    // no dossier pop-ups mid-tour
+    if (ORRERY.Ride.active) return;    // the ride owns the camera
     if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return; // drag, not click
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -294,18 +304,22 @@
     asteroids.rotation.y += asteroids.userData.spinRate * dt;
     kuiper.rotation.y += kuiper.userData.spinRate * dt;
 
-    // Camera: fly-in tween, then follow the selected body
-    if (flyT < 1) {
-      flyT = Math.min(1, flyT + dt / 1.6);
-      camera.position.lerpVectors(flyFrom, flyTo, ease(flyT));
-    }
-    if (follow) {
-      follow.getWorldPosition(tmp);
-      controls.target.lerp(tmp, reducedMotion ? 1 : 0.12);
+    // Camera: ride-along owns it entirely; otherwise fly tween + follow
+    if (ORRERY.Ride.active) {
+      ORRERY.Ride.tick(dt);
     } else {
-      controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.05);
+      if (flyT < 1) {
+        flyT = Math.min(1, flyT + dt / 1.6);
+        camera.position.lerpVectors(flyFrom, flyTo, ease(flyT));
+      }
+      if (follow) {
+        follow.getWorldPosition(tmp);
+        controls.target.lerp(tmp, reducedMotion ? 1 : 0.12);
+      } else {
+        controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.05);
+      }
+      controls.update();
     }
-    controls.update();
 
     ORRERY.Panel.tick(jd);
     ORRERY.Labels.update(camera, window.innerWidth, window.innerHeight);

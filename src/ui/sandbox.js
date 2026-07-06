@@ -291,6 +291,20 @@ ORRERY.Sandbox = (function () {
     }
   };
 
+  /** Chase-cam the most recently launched body. */
+  function rideNewest() {
+    var vis = visuals[visuals.length - 1];
+    if (!vis) return;
+    ORRERY.Ride.start({
+      label: 'your probe',
+      back: 7,
+      getPos: function () { return vis.sprite.position; },
+      isAlive: function () { return vis.p.alive && visuals.indexOf(vis) !== -1; },
+      onStart: function () { vis.sprite.scale.setScalar(0.9); },
+      onStop: function () { vis.sprite.scale.setScalar(2.6); }
+    });
+  }
+
   function clearAll() {
     while (visuals.length) removeVisual(visuals[0]);
     NB.clear();
@@ -323,6 +337,7 @@ ORRERY.Sandbox = (function () {
     els.speed = document.getElementById('sb-speed');
     els.note = document.getElementById('sb-note');
     document.getElementById('sb-clear').addEventListener('click', clearAll);
+    document.getElementById('sb-ride').addEventListener('click', rideNewest);
     els.hud.querySelectorAll('[data-preset]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         els.note.textContent = '';

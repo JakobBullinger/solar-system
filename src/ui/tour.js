@@ -97,12 +97,18 @@ ORRERY.Tour = (function () {
     document.getElementById('offer-skip').addEventListener('click', dismissOffer);
   }
 
-  /** Suggest the tour on a first visit with no deep-linked state. */
+  /**
+   * Suggest the tour on a first visit with no deep-linked state. The offer
+   * yields as soon as the visitor starts exploring on their own (touching
+   * the scene) or after half a minute.
+   */
   function maybeOffer() {
     var seen = null;
     try { seen = localStorage.getItem('orrery-tour-offered'); } catch (e) { }
     if (seen || ORRERY.Permalink.hasState) return;
     els.offer.classList.add('show');
+    document.getElementById('scene').addEventListener('pointerdown', dismissOffer, { once: true });
+    setTimeout(dismissOffer, 30000);
   }
 
   function dismissOffer() {
@@ -113,6 +119,7 @@ ORRERY.Tour = (function () {
   function start() {
     if (active) return;
     dismissOffer();
+    ORRERY.Ride.exit();
     active = true;
     restored = false;
     voyagerUsed = false;

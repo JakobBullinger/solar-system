@@ -109,6 +109,19 @@ ORRERY.Panel = (function () {
         renderJump(jump, b);
       });
       els.actions.appendChild(jump);
+
+      var ride = document.createElement('button');
+      ride.className = 'p-jump';
+      ride.textContent = 'Ride along with ' + b.name + ' ▸';
+      var entry = current;
+      ride.addEventListener('click', function () {
+        ORRERY.Ride.start({
+          label: b.name,
+          back: 24,
+          getPos: function () { return entry.position; }
+        });
+      });
+      els.actions.appendChild(ride);
     }
 
     root.classList.add('open');
