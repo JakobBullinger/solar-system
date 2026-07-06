@@ -50,7 +50,9 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **Missions** (top right): the sandbox with goals. Six missions launch from
   Earth against a hard Δv budget — drag sets your departure burn (direction +
   size, added to Earth's own velocity), a live preview with *moving* planets
-  shows your closest approach, and the gold arc means you've got it. Stars for
+  shows your closest approach, and the gold arc means you've got it. Release
+  to review the flight plan: click the arc and drag to add a **mid-course
+  burn** at that moment of the flight (same budget), then Launch. Stars for
   Δv efficiency; Grand Tour '77 sets the clock to the real Voyager window
 - **True size** rescales planets to honest ratios vs the Sun
 
@@ -152,11 +154,12 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | Tooling | CLAUDE.md (architecture + hard-won physics/verification notes) and four Claude Code project skills in `.claude/skills/`: headless-check, playtest-scan, deploy, explain-diff. Levels 13 (challenge links) + 14 (mid-course burns) in development on parallel worktree branches |
 | 2026-07-06 | 13 · Challenge links | Mission runs are shareable: `?ch=mission,jd,vx,vy,vz,stars` (burn vector as integer micro-AU/day, ~0.002 km/s precision) replays the exact flight as a ghost run under a "Beat this: ★★★ by a friend" banner — no stars banked, budget-validated against forged links — then hands over for a counter-attempt with a beat/matched/still-theirs verdict. Every win grows a "Copy challenge link" action (`challenge.js`); permalink freezes the URL while the ghost flies; classic `?jd/body` + `#sb=` links untouched. Round-trip verified headless: a 3★ Mars link found by offline search replays to the same 3★ and regenerates a byte-identical link |
 | 2026-07-06 | Tooling | ORCHESTRATION.md: multi-agent worktree setup (roles, filesystem protocol, merge order, two-layer verification bar) + planned v2 PR-based flow with CI. Level 13 merged to main, verified, deployed |
+| 2026-07-06 | 14 · Mid-course burns | Releasing the departure drag now opens a flight plan: click a point on the previewed arc (each point carries its time-of-flight) and drag a second Δv from it — both burns share the mission budget, and the flight integrator splits its step to fire the impulse at its exact jd (`previewLive` gained scheduled burns + timestamped points). Gold-arc verdicts are now time-gated to the mission limit. Icarus par retuned 18.8 → 15: a two-burn scan (raise aphelion, then kill your speed out there) found a flight-confirmed 14.5 km/s minimum vs ~18.2 single-burn, and the hint teaches the trick. All six missions re-verified 3★-able at par by scans + flight-grade sims; a Grand Tour two-burn scan found nothing below its single-burn minimum, so its par stands. Challenge links replay the departure burn only for now |
 
 ## Ideas / backlog
 
-- Mission Designer v2: mid-course correction burns,
-  more missions (comet rendezvous, Mercury via Venus assist)
+- Mission Designer v2: more missions (comet rendezvous, Mercury via Venus assist);
+  extend challenge links to carry the mid-course leg
 - Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
 - Eclipse finder in the almanac
