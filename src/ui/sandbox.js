@@ -360,12 +360,28 @@ ORRERY.Sandbox = (function () {
     if (on) updateHud();
   }
 
+  /** Alive bodies as plain data (capped) — the permalink's payload. */
+  function serialize() {
+    return NB.particles
+      .filter(function (p) { return p.alive; })
+      .slice(0, 24)
+      .map(function (p) {
+        return {
+          pos: [p.pos.x, p.pos.y, p.pos.z],
+          vel: [p.vel.x, p.vel.y, p.vel.z],
+          color: p.color
+        };
+      });
+  }
+
   return {
     init: init,
     setMode: setMode,
     tick: tick,
     clear: clearAll,
     runVoyager: function () { PRESETS.voyager(); },
+    addBody: function (pos, vel, color) { spawn(pos, vel, color); },
+    serialize: serialize,
     get active() { return active; }
   };
 })();

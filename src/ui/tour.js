@@ -88,10 +88,31 @@ ORRERY.Tour = (function () {
       else if (e.code === 'ArrowRight') step(1);
       else if (e.code === 'ArrowLeft') step(-1);
     });
+
+    els.offer = document.getElementById('tour-offer');
+    document.getElementById('offer-start').addEventListener('click', function () {
+      dismissOffer();
+      start();
+    });
+    document.getElementById('offer-skip').addEventListener('click', dismissOffer);
+  }
+
+  /** Suggest the tour on a first visit with no deep-linked state. */
+  function maybeOffer() {
+    var seen = null;
+    try { seen = localStorage.getItem('orrery-tour-offered'); } catch (e) { }
+    if (seen || ORRERY.Permalink.hasState) return;
+    els.offer.classList.add('show');
+  }
+
+  function dismissOffer() {
+    els.offer.classList.remove('show');
+    try { localStorage.setItem('orrery-tour-offered', '1'); } catch (e) { }
   }
 
   function start() {
     if (active) return;
+    dismissOffer();
     active = true;
     restored = false;
     voyagerUsed = false;
@@ -203,6 +224,7 @@ ORRERY.Tour = (function () {
     init: init,
     start: start,
     exit: exit,
+    maybeOffer: maybeOffer,
     get active() { return active; }
   };
 })();

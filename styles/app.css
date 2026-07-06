@@ -27,6 +27,7 @@ html, body {
   position: fixed;
   inset: 0;
   display: block;
+  touch-action: none; /* one finger orbits, two zoom — never page-scroll */
 }
 
 button {
@@ -661,6 +662,52 @@ button:focus-visible {
 .sb-speed.show { opacity: 1; }
 .sb-speed.esc { color: #ff8585; border-color: rgba(255, 133, 133, 0.35); }
 
+/* ---- First-visit tour offer ---------------------------------------------------- */
+.tour-offer {
+  position: fixed;
+  left: 50%;
+  bottom: 170px;
+  transform: translateX(-50%) translateY(10px);
+  z-index: 24;
+  width: min(430px, calc(100vw - 32px));
+  padding: 16px 18px;
+  background: var(--glass);
+  border: 1px solid rgba(242, 166, 60, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s 1.2s, transform 0.5s 1.2s;
+}
+.tour-offer.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.tour-offer p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(233, 238, 247, 0.88);
+  margin-bottom: 11px;
+}
+.offer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#offer-start {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  color: #ffe1a8;
+  border: 1px solid rgba(242, 166, 60, 0.5);
+  border-radius: 999px;
+  background: rgba(242, 166, 60, 0.1);
+}
+#offer-start:hover { background: rgba(242, 166, 60, 0.2); }
+#offer-skip {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+#offer-skip:hover { color: var(--text); }
+@media (prefers-reduced-motion: reduce) {
+  .tour-offer { transition: none; }
+}
+
 /* ---- Guided tour ---------------------------------------------------------------- */
 .toggle-tour {
   color: #ffe1a8;
@@ -802,6 +849,40 @@ body.touring .scale-note { display: none; }
   .masthead p { display: none; }
   .hint { display: none; }
   .tb-presets { display: none; }
-  .toggles { top: auto; bottom: 148px; right: 16px; flex-direction: column; align-items: flex-end; }
+  .toggles { top: auto; bottom: 158px; right: 12px; flex-direction: column; align-items: flex-end; }
   .scale-note { display: none; }
+
+  /* Chips: one scrollable row instead of a tall wrap */
+  .rail {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; }
+
+  .deck { bottom: 12px; width: calc(100vw - 20px); }
+  .timebar { gap: 10px; padding: 10px 12px; }
+  .tb-clock { min-width: 96px; }
+  #tb-date { font-size: 13px; }
+
+  .panel { width: 100vw; border-left: none; }
+  .events { width: 100vw; border-right: none; }
+
+  .sandbox-hud {
+    right: 10px;
+    left: auto;
+    bottom: 210px;
+    width: min(250px, calc(100vw - 20px));
+  }
+
+  .tour { bottom: 12px; width: calc(100vw - 16px); }
+  .tour-card { padding: 14px 16px 12px; }
+  #tour-title { font-size: 18px; }
+  #tour-text { font-size: 12.5px; }
+  .tour-offer { bottom: 150px; }
 }

@@ -225,6 +225,17 @@
   flyHome();
   controls.target.set(0, 0, 0);
 
+  // Deep-linked state (must come after the intro so a ?body fly-to wins),
+  // then the first-visit tour offer if the URL carried nothing.
+  ORRERY.Permalink.init({
+    registry: registry,
+    select: select,
+    selectedKey: function () {
+      return follow && follow.userData.body ? follow.userData.body.key : null;
+    }
+  });
+  ORRERY.Tour.maybeOffer();
+
   // --- Render loop -------------------------------------------------------------
   var clock = new THREE.Clock();
   var tmp = new THREE.Vector3();
