@@ -78,23 +78,27 @@ ORRERY.Missions = (function () {
     },
     {
       key: 'marsorbit', name: 'Mars Orbiter', special: 'orbiter', targetKey: 'mars',
-      rpMax: 0.005, holdDays: 60,
-      budget: 8, par: 6.0, limitY: 3, previewSteps: 550,
-      desc: 'Brake into orbit around Mars — periapsis under 0.005 AU — and hold it for 60 days.',
+      rpMax: 0.005, raMax: 0.007, holdDays: 60,
+      budget: 8, par: 6.0, limitY: 3, previewSteps: 2200, previewH: 0.5,
+      desc: 'Brake into a tight orbit around Mars — periapsis under 0.005 AU, apoapsis ' +
+        'inside its Hill sphere — and hold it for 60 days.',
       hint: 'Flying past is easy; staying costs a second burn. Skim Mars, then click the ' +
-        'arc at closest approach and burn against your relative motion until you’re caught. ' +
-        'One catch: your burns are in-plane, so arrive while Mars is crossing the ecliptic ' +
-        '(it does every ~11 months) — miss the crossing and the planet sits above your reach.'
+        'arc at closest approach and drag against your relative motion until you’re caught. ' +
+        'Arrive while Mars crosses the ecliptic (it does every ~11 months) — the planet ' +
+        'spends most of its year out of your reach — and know the insertion burn banks ' +
+        '~0.8 km/s extra to match Mars’s tilted plane. The budget knows.'
     },
     {
       key: 'ringside', name: 'Ringside', special: 'orbiter', targetKey: 'saturn',
-      rpMax: 0.04, holdDays: 90,
+      rpMax: 0.04, raMax: 0.3, holdDays: 90,
       budget: 15, par: 12.5, limitY: 7, epoch: 2461771.5, previewSteps: 1280,
-      desc: 'Be captured by Saturn: a bound orbit with periapsis inside 0.04 AU, held 90 days.',
+      desc: 'Be captured by Saturn: a bound orbit with periapsis inside 0.04 AU (apoapsis ' +
+        'inside 0.3), held 90 days.',
       hint: 'Saturn rides up to 0.4 AU off the ecliptic — no in-plane probe gets caught out ' +
         'there. It crosses the plane in June 2034; the clock starts in 2028 so you can ride ' +
         'a transfer that arrives on the crossing. Keep 2–3 km/s for the insertion burn at ' +
-        'closest approach — the deeper you dive, the cheaper the catch.'
+        'closest approach (it banks a little extra to match Saturn’s plane) — the deeper ' +
+        'you dive, the cheaper the catch.'
     }
   ];
 
@@ -273,16 +277,20 @@ ORRERY.Missions = (function () {
       }
     } else if (current.special === 'orbiter') {
       // Win = a bound streak (previewLive capture tracking) long enough to
-      // hold, whose worst osculating periapsis stays under the ceiling
+      // hold, whose worst osculating periapsis stays under the ceiling and
+      // whose apoapsis stays inside raMax (~the Hill radius) — otherwise a
+      // loosely-bound arc that drifts off after the hold would count
       var cap = pv.capture;
       good = !pv.died && !!cap && cap.days >= current.holdDays &&
-        cap.worstRp <= current.rpMax;
+        cap.worstRp <= current.rpMax && cap.worstRa <= current.raMax;
       if (cap) {
         readout = 'captured: peri ' + cap.rp.toFixed(4) + ' × apo ' + cap.ra.toFixed(4) +
           ' AU · holds ' + Math.round(Math.min(cap.days, current.holdDays)) + ' / ' +
           current.holdDays + ' d';
         if (cap.worstRp > current.rpMax) {
           readout += ' · peri over ' + current.rpMax + ' AU!';
+        } else if (cap.worstRa > current.raMax) {
+          readout += ' · apo over ' + current.raMax + ' AU — too loose!';
         }
       } else {
         readout = 'closest ' + (pv.target ? pv.target.d.toFixed(4) : '—') +
@@ -417,19 +425,39 @@ ORRERY.Missions = (function () {
     return best;
   }
 
-  /** Current plan drag → mid-course Δv (in-plane), clamped to what's left. */
+  /**
+   * Current plan drag → mid-course Δv (in-plane), clamped to what's left.
+   *
+   * Orbiter missions add a plane-match: no in-plane burn can cancel the
+   * target's out-of-plane motion (Mars crosses its node at 0.78 km/s in z —
+   * more than escape speed anywhere in its Hill sphere, so capture would be
+   * mathematically impossible), so the insertion burn banks to zero the
+   * relative z-velocity and that component is charged against the same
+   * budget at its true cost.
+   */
   function dragBurn2(e) {
     var left = current.budget - attempt.burn1.kms;
     var cur = sceneToAU(hit);
     var dx = cur.x - planPick.au.x, dy = cur.y - planPick.au.y;
     var len = Math.sqrt(dx * dx + dy * dy);
     if (len < 1e-9 || left < 0.1) return null;
+    var vz = 0;
+    if (current.special === 'orbiter') {
+      var jd2 = attempt.departJd + planPick.t;
+      var t2 = K.heliocentric(targetEl(), jd2 + 0.5);
+      var t1 = K.heliocentric(targetEl(), jd2 - 0.5);
+      vz = (t2.z - t1.z) - (planPick.vz || 0);
+    }
+    var zKms = Math.abs(vz) * KMS;
+    if (zKms >= left - 0.05) return null;  // can't afford the plane match
     var px = Math.hypot(e.clientX - startPx.x, e.clientY - startPx.y);
-    var kms = Math.min(left, Math.max(0.1, px * DV_PER_PX));
-    var v = kms / KMS / len;
+    var ipMax = Math.sqrt(left * left - zKms * zKms);
+    var ipKms = Math.min(ipMax, Math.max(0.1, px * DV_PER_PX));
+    var v = ipKms / KMS / len;
     return {
       t: planPick.t, au: planPick.au,
-      vec: { x: dx * v, y: dy * v, z: 0 }, kms: kms
+      vec: { x: dx * v, y: dy * v, z: vz },
+      kms: Math.sqrt(ipKms * ipKms + zKms * zKms)
     };
   }
 
@@ -629,13 +657,15 @@ ORRERY.Missions = (function () {
       var ro = NB.relPlanet(p.pos, p.vel, targetEl(), jd);
       if (ro.d < attempt.closest) attempt.closest = ro.d;
       if (ro.bound) {
-        // Same bound test + osculating rp as the plan preview's capture
+        // Same bound test + osculating rp/ra as the plan preview's capture
         // tracking; drifting out of the Hill sphere restarts the clock
-        if (!attempt.capStart) { attempt.capStart = jd; attempt.worstRp = 0; }
+        if (!attempt.capStart) { attempt.capStart = jd; attempt.worstRp = 0; attempt.worstRa = 0; }
         attempt.held = jd - attempt.capStart;
         if (ro.orb.rp > attempt.worstRp) attempt.worstRp = ro.orb.rp;
+        if (ro.orb.ra > attempt.worstRa) attempt.worstRa = ro.orb.ra;
         attempt.rp = ro.orb.rp; attempt.ra = ro.orb.ra;
-        if (attempt.held >= current.holdDays && attempt.worstRp <= current.rpMax) {
+        if (attempt.held >= current.holdDays && attempt.worstRp <= current.rpMax &&
+            attempt.worstRa <= current.raMax) {
           finish(true);
           return;
         }
@@ -683,7 +713,8 @@ ORRERY.Missions = (function () {
       line += attempt.capStart
         ? ' · in orbit: peri ' + attempt.rp.toFixed(4) + ' × apo ' + attempt.ra.toFixed(4) +
           ' AU · ' + Math.round(attempt.held) + ' / ' + current.holdDays + ' d' +
-          (attempt.worstRp > current.rpMax ? ' · periapsis too high!' : '')
+          (attempt.worstRp > current.rpMax ? ' · periapsis too high!'
+            : attempt.worstRa > current.raMax ? ' · orbit too loose!' : '')
         : (attempt.closest < 1e8 ? ' · closest so far: ' + attempt.closest.toFixed(4) + ' AU' : '');
     } else if (current.special !== 'escape' && attempt.closest < 1e8) {
       line += ' · closest so far: ' + attempt.closest.toFixed(3) + ' AU';
@@ -875,7 +906,7 @@ ORRERY.Missions = (function () {
         if (current.budget - attempt.burn1.kms < 0.1) return;  // nothing left to burn
         var pt = pickArcPoint(e);
         if (!pt || !pickEcliptic(e, hit)) return;
-        planPick = { t: pt.t, au: { x: pt.x, y: pt.y, z: pt.z } };
+        planPick = { t: pt.t, au: { x: pt.x, y: pt.y, z: pt.z }, vz: pt.vz || 0 };
         planDragging = true;
         controls.enabled = false;
         startPx.x = e.clientX; startPx.y = e.clientY;

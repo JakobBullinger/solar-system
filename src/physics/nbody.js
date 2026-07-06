@@ -271,7 +271,7 @@ ORRERY.NBody = (function () {
         remaining -= hl;
       }
 
-      if (s % every === 0) out.points.push({ x: px, y: py, z: pz, t: s * h });
+      if (s % every === 0) out.points.push({ x: px, y: py, z: pz, t: s * h, vz: vz });
       if (ti >= 0) {
         var t = src[ti];
         var d = Math.sqrt((px - t.x) * (px - t.x) + (py - t.y) * (py - t.y) + (pz - t.z) * (pz - t.z));
@@ -289,10 +289,11 @@ ORRERY.NBody = (function () {
         var rel = relPlanet({ x: px, y: py, z: pz }, { x: vx, y: vy, z: vz },
           targetEl, jd0 + s * h);
         if (rel && rel.bound) {
-          if (!capCur) capCur = { days: 0, startJd: jd0 + s * h, worstRp: 0, rp: 0, ra: 0 };
+          if (!capCur) capCur = { days: 0, startJd: jd0 + s * h, worstRp: 0, worstRa: 0, rp: 0, ra: 0 };
           capCur.days += h;
           capCur.rp = rel.orb.rp; capCur.ra = rel.orb.ra;
           if (rel.orb.rp > capCur.worstRp) capCur.worstRp = rel.orb.rp;
+          if (rel.orb.ra > capCur.worstRa) capCur.worstRa = rel.orb.ra;
           if (!capBest || capCur.days >= capBest.days) capBest = capCur;
         } else {
           capCur = null;
