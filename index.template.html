@@ -23,6 +23,7 @@
   <button class="toggle toggle-missions" id="opt-missions">Missions</button>
   <button class="toggle" id="opt-sandbox">Sandbox</button>
   <button class="toggle" id="opt-events">Events</button>
+  <button class="toggle" id="opt-porkchop">Windows</button>
   <button class="toggle" id="opt-orbits">Orbits</button>
   <button class="toggle" id="opt-labels">Labels</button>
   <button class="toggle" id="opt-true">True size</button>
@@ -63,6 +64,24 @@
   </header>
   <div id="ev-tonight"></div>
   <div id="ev-list"></div>
+</aside>
+
+<aside class="porkchop" id="porkchop" aria-hidden="true">
+  <header>
+    <div>
+      <h3>Launch Windows</h3>
+      <span id="pc-range"></span>
+    </div>
+    <button id="pc-refresh" title="Recompute from the current date">↻</button>
+    <button id="pc-close" aria-label="Close launch windows">✕</button>
+  </header>
+  <div class="pc-targets" id="pc-targets"></div>
+  <div class="pc-plot"><canvas id="pc-canvas"></canvas></div>
+  <div class="pc-readout" id="pc-readout"></div>
+  <p class="pc-note"><span class="pc-gold">Gold</span> is cheap, dark is costly:
+    each cell is the departure burn (km/s off Earth's orbit, two-body estimate)
+    to reach the target in that flight time. Click a cell to set the clock there —
+    targets marked ◦ open their mission ready to aim.</p>
 </aside>
 
 <div class="tonight-pill" id="tonight-pill">

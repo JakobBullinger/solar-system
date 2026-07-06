@@ -108,6 +108,7 @@
     onExitCam: function () { flyT = 1; }   // cancel any stale fly tween
   });
   ORRERY.Missions.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
+  ORRERY.Porkchop.init();
   ORRERY.Tour.init({
     registry: registry,
     focus: focus,

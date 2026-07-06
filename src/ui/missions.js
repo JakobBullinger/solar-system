@@ -425,6 +425,22 @@ ORRERY.Missions = (function () {
     render();
   }
 
+  /**
+   * Launch Window Lab: open the target's mission straight into aiming.
+   * The porkchop drawer has already set the sim clock to the chosen
+   * departure, so the player lands on a pre-found window.
+   */
+  function aimAt(key) {
+    var m = null;
+    MISSIONS.forEach(function (mi) { if (!mi.special && mi.targetKey === key) m = mi; });
+    if (!m) return false;
+    dropProbe();
+    current = m;
+    els.btn.setAttribute('aria-pressed', 'true');
+    act('aim');
+    return true;
+  }
+
   /** Challenge links: re-fly a recorded run (departure + optional mid-course
    *  burn) as a ghost. Both legs are re-validated against the mission's own
    *  budget and deadline — a forged or corrupt link simply refuses to fly. */
@@ -780,6 +796,7 @@ ORRERY.Missions = (function () {
     tick: tick,
     close: close,
     replayBurn: replayBurn,
+    aimAt: aimAt,
     get aiming() { return state === 'aim' || state === 'plan'; },
     get active() { return state !== 'closed'; }
   };
