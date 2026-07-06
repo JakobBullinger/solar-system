@@ -61,6 +61,15 @@ ORRERY.Missions = (function () {
       hint: 'Escape velocity at Earth’s distance is 42.1 km/s. Every km/s of prograde burn counts double out here.'
     },
     {
+      key: 'halo', name: 'Halo Keeper', special: 'halo',
+      lagSys: 'earth', lagPt: 'L2', holdR: 0.01, holdDays: 60,
+      budget: 2, par: 0.5, limitY: 2, previewSteps: 2920, previewH: 0.25,
+      desc: 'Park within 0.01 AU of Sun–Earth L2 and hold the region for 60 days.',
+      hint: 'L2 rides 0.01 AU outside Earth, orbiting in lockstep. Creep up the outside ' +
+        'lane — arrive slow, then kill your drift with a whisper of a mid-course burn. ' +
+        'The saddle won’t hold you long; make your insertion count.'
+    },
+    {
       key: 'grandtour', name: 'Grand Tour ’77', special: 'slingshot',
       targetKey: 'jupiter', flybyTol: 0.1, reachR: 9.2,
       budget: 11.5, par: 11.1, limitY: 5.5, epoch: 2443330.5,
@@ -198,8 +207,11 @@ ORRERY.Missions = (function () {
   function runPlan(jd, burn1Vec, burn2) {
     var ls = launchState(jd, burn1Vec);
     var burns = burn2 ? [{ t: burn2.t, dv: burn2.vec }] : null;
-    var pv = NB.previewLive(ls.pos, ls.vel, jd, PREVIEW_STEPS, PREVIEW_H,
-      targetEl(), Math.ceil(PREVIEW_STEPS / PREVIEW_N), burns);
+    // Station-keeping missions need finer steps than a planet transfer
+    var steps = current.previewSteps || PREVIEW_STEPS;
+    var h = current.previewH || PREVIEW_H;
+    var pv = NB.previewLive(ls.pos, ls.vel, jd, steps, h,
+      targetEl(), Math.ceil(steps / PREVIEW_N), burns);
     return { ls: ls, pv: pv };
   }
 
@@ -214,6 +226,31 @@ ORRERY.Missions = (function () {
     } else if (current.special === 'escape') {
       good = pv.endEnergy > 0;
       readout = good ? 'escape trajectory' : 'still bound to the Sun';
+    } else if (current.special === 'halo') {
+      // Longest consecutive stay inside holdR of the (moving) Lagrange point
+      var dt = (current.previewH || PREVIEW_H) *
+        Math.ceil((current.previewSteps || PREVIEW_STEPS) / PREVIEW_N);
+      var held = 0, bestHeld = 0, bestD = 1e9, bestL = null;
+      for (var q = 0; q < pv.points.length; q++) {
+        var qp = pv.points[q];
+        if (jd + qp.t > limitJd) break;
+        var L = ORRERY.Lagrange.point(current.lagSys, current.lagPt, jd + qp.t);
+        var dl = Math.sqrt((qp.x - L.x) * (qp.x - L.x) +
+          (qp.y - L.y) * (qp.y - L.y) + (qp.z - L.z) * (qp.z - L.z));
+        if (dl < bestD) { bestD = dl; bestL = L; }
+        if (dl <= current.holdR) {
+          held += dt;
+          if (held > bestHeld) bestHeld = held;
+        } else held = 0;
+      }
+      good = !pv.died && bestHeld >= current.holdDays;
+      readout = 'closest to ' + current.lagPt + ' ' + bestD.toFixed(4) + ' AU · holds ' +
+        Math.round(Math.min(bestHeld, current.holdDays)) + ' / ' + current.holdDays + ' d';
+      if (bestL) {
+        K.toScene(bestL, V1);
+        targetMark.position.copy(V1);
+        targetMark.visible = true;
+      }
     } else if (current.special === 'slingshot') {
       var pass = pv.target && pv.target.d <= current.flybyTol;
       var reachJd = null;                          // when the fling first clears the goal radius
@@ -525,6 +562,22 @@ ORRERY.Missions = (function () {
       if (!attempt.flybyDone && dj <= current.flybyTol) attempt.flybyDone = true;
       var rNow = Math.sqrt(p.pos.x * p.pos.x + p.pos.y * p.pos.y + p.pos.z * p.pos.z);
       if (attempt.flybyDone && rNow >= current.reachR) { finish(true); return; }
+    } else if (current.special === 'halo') {
+      if (!p.alive) { finish(false, p.status === 'sun' ? 'Consumed by the Sun.' : 'It drifted away for good.'); return; }
+      var Lp = ORRERY.Lagrange.point(current.lagSys, current.lagPt, jd);
+      var dL = Math.sqrt(
+        (p.pos.x - Lp.x) * (p.pos.x - Lp.x) +
+        (p.pos.y - Lp.y) * (p.pos.y - Lp.y) +
+        (p.pos.z - Lp.z) * (p.pos.z - Lp.z));
+      if (dL < attempt.closest) attempt.closest = dL;
+      if (dL <= current.holdR) {
+        if (!attempt.holdStart) attempt.holdStart = jd;
+        attempt.held = jd - attempt.holdStart;
+        if (attempt.held >= current.holdDays) { finish(true); return; }
+      } else if (attempt.holdStart) {
+        attempt.holdStart = null;    // drifted out — the clock restarts
+        attempt.held = 0;
+      }
     } else if (current.special === 'escape') {
       if (!p.alive && p.status === 'sun') { finish(false, 'Consumed by the Sun.'); return; }
       var rr = Math.sqrt(p.pos.x * p.pos.x + p.pos.y * p.pos.y + p.pos.z * p.pos.z);
@@ -556,6 +609,11 @@ ORRERY.Missions = (function () {
     var line = 'T+ ' + t;
     if (current.special === 'sunGraze') {
       line += ' · perihelion so far: ' + attempt.minR.toFixed(3) + ' AU';
+    } else if (current.special === 'halo') {
+      line += attempt.holdStart
+        ? ' · on station ' + Math.round(attempt.held) + ' / ' + current.holdDays + ' d'
+        : ' · ' + current.lagPt + ' range ' +
+          (attempt.closest < 1e8 ? attempt.closest.toFixed(4) + ' AU' : '—');
     } else if (current.special === 'slingshot') {
       line += attempt.flybyDone
         ? ' · Jupiter flyby ✓ — now coasting outward'
