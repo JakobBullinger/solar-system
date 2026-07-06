@@ -59,4 +59,7 @@ reference; **update its Log table after every landed change**.
   shared hotspots (`main.js`, `index.template.html`, `build.js`, `styles/app.css`,
   README) minimal and additive.
 - After merging to main: rebuild, `/headless-check`, update README log, push,
-  `/deploy` to the hosted artifact.
+  `/deploy` to the hosted artifact — then immediately `git worktree remove` the
+  merged branch's worktree and delete the branch (merge + cleanup is one step).
+- Audit `git worktree list` routinely (e.g. at session start); stale worktrees
+  must not accumulate.
