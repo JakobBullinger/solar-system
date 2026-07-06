@@ -30,6 +30,13 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **✦ Tour** (top right): a ~2-minute guided cinematic tour — Sun, Earth's spin,
   Jupiter's moons, Saturn, Halley in 1986, the Voyager grand tour — with captions.
   Auto-advances; arrow keys / dots navigate, Esc exits and restores your clock
+- **Replays** (top right): fly real missions start to finish in the app's own
+  physics, from the spacecraft's shoulder. **New Horizons** (2006–2015: fastest
+  launch ever → Jupiter slingshot → Pluto) and **Cassini–Huygens** (1997–2004:
+  Venus → Venus → Earth → Jupiter → captured at Saturn). Chaptered captions keyed
+  to the sim clock, a live range/speed readout, dots/arrows to jump chapters
+  (each jump re-flies the trajectory deterministically), Esc exits and restores
+  your clock
 - **Drag** to orbit, **scroll** to zoom, **click** a body (or its chip/label) to visit it
 - **Space** pauses time; the time bar scrubs from real-time to 1 yr/s, presets + "Today"
 - **Panel** shows a dossier per body: facts, stats, live distance/velocity from the physics
@@ -155,6 +162,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 13 · Challenge links | Mission runs are shareable: `?ch=mission,jd,vx,vy,vz,stars` (burn vector as integer micro-AU/day, ~0.002 km/s precision) replays the exact flight as a ghost run under a "Beat this: ★★★ by a friend" banner — no stars banked, budget-validated against forged links — then hands over for a counter-attempt with a beat/matched/still-theirs verdict. Every win grows a "Copy challenge link" action (`challenge.js`); permalink freezes the URL while the ghost flies; classic `?jd/body` + `#sb=` links untouched. Round-trip verified headless: a 3★ Mars link found by offline search replays to the same 3★ and regenerates a byte-identical link |
 | 2026-07-06 | Tooling | ORCHESTRATION.md: multi-agent worktree setup (roles, filesystem protocol, merge order, two-layer verification bar) + planned v2 PR-based flow with CI. Level 13 merged to main, verified, deployed |
 | 2026-07-06 | 14 · Mid-course burns | Releasing the departure drag now opens a flight plan: click a point on the previewed arc (each point carries its time-of-flight) and drag a second Δv from it — both burns share the mission budget, and the flight integrator splits its step to fire the impulse at its exact jd (`previewLive` gained scheduled burns + timestamped points). Gold-arc verdicts are now time-gated to the mission limit. Icarus par retuned 18.8 → 15: a two-burn scan (raise aphelion, then kill your speed out there) found a flight-confirmed 14.5 km/s minimum vs ~18.2 single-burn, and the hint teaches the trick. All six missions re-verified 3★-able at par by scans + flight-grade sims; a Grand Tour two-burn scan found nothing below its single-burn minimum, so its par stands. Challenge links replay the departure burn only for now |
+| 2026-07-06 | 15 · Mission replays | Narrated, chaptered replays of real missions riding the spacecraft (`replays.js`, reusing the tour card + ride cam): **New Horizons** is fully ballistic — one offline-searched launch state (42.813 km/s, found by stepping the app's own integrator exactly as live playback slices frames) hits Jupiter at 0.0153 AU on 28 Feb 2007, the historical date, then Pluto at ~0.0003 AU on 14 Jul 2015. **Cassini** flies the whole VVEJGA chain (Venus 0.0025 → Venus 0.0025 → Earth 0.0025 → Jupiter 0.020 AU → Saturn, captured); the softened integrator can't bend inner-planet flybys hard enough, so each big assist is applied as a searched reference velocity at closest approach, and SOI is computed live at the detected Saturn closest approach — the chain survives ±35% frame-time jitter. Burns split the integration at their exact jd; chapter jumps re-fly the trajectory deterministically; clock saved/restored on exit. Verified headless through `Sandbox.tick` (the live code path) + UI state assertions + a rendered mid-replay screenshot |
 
 ## Ideas / backlog
 

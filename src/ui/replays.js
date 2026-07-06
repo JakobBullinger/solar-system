@@ -440,6 +440,7 @@ ORRERY.Replays = (function () {
     els.dots = document.getElementById('tour-dots');
     els.fill = document.getElementById('tour-progress-fill');
     els.next = document.getElementById('tour-next');
+    els.exit = document.getElementById('tour-exit');
     els.menu = document.getElementById('replay-menu');
 
     document.getElementById('opt-replays').addEventListener('click', toggleMenu);
@@ -464,7 +465,7 @@ ORRERY.Replays = (function () {
     els.next.addEventListener('click', function () {
       if (active) goTo(idx + 1);
     });
-    document.getElementById('tour-exit').addEventListener('click', function () {
+    els.exit.addEventListener('click', function () {
       if (active) exit();
     });
     window.addEventListener('keydown', function (e) {
@@ -513,6 +514,7 @@ ORRERY.Replays = (function () {
     els.root.classList.add('show');
     els.root.setAttribute('aria-hidden', 'false');
     els.fill.style.transition = 'none';
+    els.exit.textContent = 'End replay';
     api.controls.autoRotate = false;
 
     els.dots.innerHTML = '';
@@ -664,6 +666,7 @@ ORRERY.Replays = (function () {
     document.body.classList.remove('touring');
     els.root.classList.remove('show');
     els.root.setAttribute('aria-hidden', 'true');
+    els.exit.textContent = 'End tour';
     api.controls.autoRotate = false;
     api.clearFocus();
     api.flyHome();

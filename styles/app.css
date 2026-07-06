@@ -1295,3 +1295,4 @@ body.touring .replay-menu { display: none; }
   min-height: 1em;
 }
 .replay-stat:empty { display: none; }
+body.touring .tour-offer { display: none; }
