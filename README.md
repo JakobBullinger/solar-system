@@ -184,5 +184,6 @@ serve.js                 dev server with watch + rebuild
 - Mission Designer v2: more missions (comet rendezvous, Mercury via Venus assist)
 - Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
+- L-point close-up camera: back the fly-in off the marker glow (post-19 polish)
 - Eclipse finder in the almanac
 - Procedural moon textures
