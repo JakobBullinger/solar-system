@@ -54,7 +54,8 @@ src/
   physics/kepler.js      Kepler solver, heliocentric positions, scene-space compression
   physics/almanac.js     sky-event finder (oppositions, elongations, conjunctions)
   physics/nbody.js       restricted n-body integrator for the sandbox (AU/day units)
-  scene/textures.js      procedural canvas textures (planets, rings, glows)
+  scene/textures.js      procedural canvas textures (planets, night lights, clouds, rings, glows)
+  scene/shaders.js       custom materials: terminator, atmosphere rims, analytic shadows
   scene/environment.js   starfield, Milky Way band, asteroid + Kuiper belts
   scene/bodies3d.js      Sun/planet/ring/moon meshes and orbit lines
   scene/comets3d.js      comet nucleus, coma, ion + dust particle tails
@@ -86,6 +87,13 @@ serve.js                 dev server with watch + rebuild
   the Sun. Time-symmetric — scrubbing backwards works.
 - **Almanac**: daily-grid scan + bisection/ternary refinement. Verified against
   published dates (Saturn opposition 2026-10-04, Mars opposition 2027-02-19 exact).
+- **Shading** (`shaders.js`): the Sun sits at the world origin, so the sun
+  direction at any fragment is `-normalize(worldPos)` — no light uniforms.
+  Planet shader: day/night terminator, Earth night-lights map (same noise seed
+  as the day texture's landmask), per-planet atmosphere fresnel rim, and
+  analytic object-space shadows: the ring annulus band on Saturn, the planet's
+  shadow across its rings, and up to four moon shadows on a disk (so Galilean
+  eclipses just happen). Per-frame uniforms via updaters driven from the loop.
 - **Voyager preset** (`sandbox.js` `VOYAGER` const): launch window found by an
   offline search against this exact integrator (coarse scan → Jupiter-targeting
   → aim-plane scan → coordinate descent). Departs Earth 6 Aug 1977 at 38.5 km/s
@@ -119,11 +127,10 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 6 · Grand tour | Voyager preset: offline launch-window search reproduced a 1977 Earth → Jupiter → Saturn slingshot chain in-app |
 | 2026-07-06 | Tooling | Dev server (`serve.js`, `npm run dev`), this README as running log/reference, app published to a hosted URL |
 | 2026-07-06 | 7 · Cinematic tour | Guided 8-stop tour: camera choreography via `focus`/`flyHome`, per-stop time rates, Halley-1986 + Voyager-1977 time-travel stops, caption card with auto-advance, UI auto-hide, clock restored on exit |
+| 2026-07-06 | 8 · Worlds up close | Git repo initialized. Custom shaders: day/night terminators, Earth city lights + drifting clouds, atmosphere rims per planet, Saturn ring↔planet mutual shadows, moon transit shadows, limb-darkened animated Sun |
 
 ## Ideas / backlog
 
-- "Worlds up close" shader pass: atmosphere fresnel rims, Earth night lights +
-  clouds, ring shadows, Galilean moon shadows, sun corona
 - Camera-follow for sandbox probes (ride along on the Voyager flybys)
 - Extend the tour search to Uranus/Neptune (Voyager 2's full itinerary)
 - Eclipse finder in the almanac
