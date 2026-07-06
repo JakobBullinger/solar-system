@@ -37,7 +37,10 @@ claude.ai account (shareable from there); after changes, redeploy the rebuilt
 - **Comets** (Halley, Encke) grow comas and twin tails as they near the Sun;
   their panel has "jump to next perihelion"
 - **Events** (top right): sky almanac of oppositions, elongations and conjunctions
-  for the next 4 years, computed live — click one to time-jump there
+  for the next 4 years, computed live — click one to time-jump there. Topped by
+  **"The sky tonight"**: where the naked-eye planets are in the real sky right now
+  (evening/morning/all night/hidden), with a teaser pill on load showing the
+  headline planet and the next event countdown
 - **Sandbox** (top right): drag anywhere in space to launch a body into real
   Sun + 8-planet gravity. Teal preview arc = captured orbit, red = escapes.
   Presets: **★ Voyager grand tour**, Mars transfer, mini belt, sun-diver, interstellar
@@ -138,10 +141,10 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 8 · Worlds up close | Git repo initialized. Custom shaders: day/night terminators, Earth city lights + drifting clouds, atmosphere rims per planet, Saturn ring↔planet mutual shadows, moon transit shadows, limb-darkened animated Sun |
 | 2026-07-06 | 9 · Sharing & mobile | Deep links (URL ↔ full app state incl. sandbox bodies), viewport + PWA meta with data-URI manifest/icon, touch-action + small-screen layout pass, first-visit tour offer |
 | 2026-07-06 | 10 · Ride-along | Chase camera for sandbox probes and comets: ride the Voyager flybys from the probe's shoulder; scroll-zoom, Esc exit, auto-exit on body death, planet-interior avoidance |
+| 2026-07-06 | 11 · Tonight's sky | Elongation-based visibility for naked-eye planets (real clock, not sim clock), "sky tonight" section in the almanac, load-time teaser pill with next-event countdown, "in Nd" chips on event rows |
 
 ## Ideas / backlog
 
-- "Tonight's sky" retention hook: almanac + current date + location
 - Mission Designer game mode (north star): Δv budget, targets, scoring,
   shareable challenges via deep links
 - Mission replay chapters (New Horizons, Cassini) via the tour + search machinery
