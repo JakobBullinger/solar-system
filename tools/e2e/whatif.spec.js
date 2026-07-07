@@ -10,7 +10,7 @@
  */
 'use strict';
 
-const { test, expect, gotoOrrery, screenshot, assertSceneRendered, driveTicks } = require('./orrery');
+const { test, expect, gotoOrrery, pinMenus, screenshot, assertSceneRendered, driveTicks } = require('./orrery');
 
 /** Let the frame loop run until the lying orbit ellipses have faded out. */
 async function waitForEllipseFade(page) {
@@ -29,17 +29,8 @@ async function offRail(page, key) {
   }, key);
 }
 
-/**
- * Re-pin the Explore menu: clicking any Explore item (header.js) closes the
- * menu again, so specs that press a second `#opt-…` must re-open it first
- * (gotoOrrery's pin only covers the first click after load).
- */
-async function pinExplore(page) {
-  await page.evaluate(() => window.ORRERY.Header.setOpen('explore', true));
-}
-
 async function openSandbox(page) {
-  await pinExplore(page);
+  await pinMenus(page);
   await page.click('#opt-sandbox');
   await expect(page.locator('#sandbox-hud')).toHaveClass(/show/);
 }
@@ -163,10 +154,10 @@ test('missions refuse to start while massive mode is active', async ({ page }) =
   await gotoOrrery(page);
   await openSandbox(page);
   await page.click('[data-scenario="jupiter2"]');
-  await pinExplore(page);
+  await pinMenus(page);
   await page.click('#opt-sandbox'); // leave sandbox mode; massive mode persists
 
-  await pinExplore(page);
+  await pinMenus(page);
   await page.click('#opt-missions');
   await page.click('.ms-row'); // first mission → brief
   await page.click('[data-act="aim"]');

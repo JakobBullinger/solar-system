@@ -86,6 +86,19 @@ async function gotoOrrery(page, params, opts) {
   );
 }
 
+/**
+ * Re-pin the header menus. Clicking any Explore item closes that menu again
+ * (header.js), so gotoOrrery's pin only covers the FIRST `#opt-…` click after
+ * load — a spec pressing a second one must call this first or the button is
+ * display:none and Playwright times out.
+ */
+async function pinMenus(page) {
+  await page.evaluate(() => {
+    window.ORRERY.Header.setOpen('explore', true);
+    window.ORRERY.Header.setOpen('view', true);
+  });
+}
+
 /** Screenshot into tools/e2e/artifacts/screenshots/<name>.png; returns the path. */
 async function screenshot(page, name) {
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -136,6 +149,7 @@ module.exports = {
   test,
   expect: base.expect,
   gotoOrrery,
+  pinMenus,
   screenshot,
   assertSceneRendered,
   driveTicks,

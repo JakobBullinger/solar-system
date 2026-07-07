@@ -39,7 +39,13 @@ test('my feature works end-to-end', async ({ page }) => {
 Library (`tools/e2e/orrery.js`):
 
 - `gotoOrrery(page, params?)` — file:// navigation + waits for the ORRERY
-  modules and two real rendered frames.
+  modules and two real rendered frames. Pins the header's Explore/View menus
+  open so legacy `page.click('#opt-…')` calls stay actionable (pass
+  `{ pinMenus: false }` to test the real closed→open flow).
+- `pinMenus(page)` — re-pin the menus. Clicking any Explore item closes that
+  menu again, so gotoOrrery's pin only covers the FIRST `#opt-…` click —
+  call this before every subsequent one or the button is `display:none`
+  and the click times out.
 - `screenshot(page, name)` — PNG into `tools/e2e/artifacts/screenshots/`.
 - `assertSceneRendered(file)` — reuses `test/ci/check-screenshot.js`
   (zero-dep PNG decode, lit-pixel sampling).

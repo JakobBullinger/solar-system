@@ -7,11 +7,9 @@ it but is machine-local).
 
 ## In flight
 
-- **Level 20 — The What-If Machine** (solo lane, `feature/what-if-machine`):
-  massive sandbox bodies perturbing the planets; promoted-planet integration
-  regime (rails regime must stay bit-identical — the trajectory regression
-  guard is the judge); scenario library (Second Jupiter, Companion Star,
-  Rogue Star, DART deflection); missions locked out of massive mode.
+(nothing — Level 20 What-If Machine and the header redesign both landed
+2026-07-07 via PRs #7/#8; see the README log. Level 21 is gated on human
+playtest feedback about mission pars/difficulty.)
 
 ## Next, in order
 
