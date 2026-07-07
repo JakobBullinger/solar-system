@@ -24,6 +24,19 @@ it but is machine-local).
   Starlink constellation render (real shells/planes/inclinations, synthetic
   catalog — no live TLEs, zero-network purity), rocket ascent ride-alongs.
 
+## Hosting arc (learning ladder; step 1 done 2026-07-07)
+
+1. ✅ Public repo + GitHub Pages: `.github/workflows/deploy.yml` ships
+   `dist/index.html` to https://jakobbullinger.github.io/solar-system/ on
+   every push to main (CI verifies, Deploy ships).
+2. Custom domain: DNS CNAME → Pages, auto-HTTPS. Learn: DNS, certificates.
+3. PR preview deployments (per-PR live URLs for reviewing features by
+   playing them). Learn: ephemeral environments.
+4. The backend moment — challenge-link leaderboards need the first
+   server-side state (tiny API + DB; app stays offline-capable, leaderboard
+   is optional enhancement). Learn: servers, persistence, auth.
+5. Only then, and only if wanted: containers, observability.
+
 ## Backlog (small, any gap)
 
 - Eclipse finder in the almanac + animated umbra sweep (level-25 stretch,

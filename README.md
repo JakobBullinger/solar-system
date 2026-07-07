@@ -13,7 +13,8 @@ procedural textures, physics, UI) bundles into a single `dist/index.html`.
 
 | How | Where |
 |---|---|
-| Hosted (no terminal needed) | https://claude.ai/code/artifact/6cebdb03-7a56-40d8-b300-d5e4ed6170ac |
+| **Live site** | https://jakobbullinger.github.io/solar-system/ (auto-deploys from main) |
+| Claude artifact (private mirror) | https://claude.ai/code/artifact/6cebdb03-7a56-40d8-b300-d5e4ed6170ac |
 | Dev server (auto-rebuild on save) | `npm run dev` → opens http://localhost:4173 |
 | Just build | `npm run build` → open `dist/index.html` in any browser |
 
