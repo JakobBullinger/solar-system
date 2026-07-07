@@ -17,8 +17,12 @@ Verdict column: `WORKING` (session active <30 min idle), `STALLED <t>` (idle
 >30 min — the sleep-stall smell from ORCHESTRATION.md process lessons),
 `PR OPEN #n` / `CI RED #n` (finish-line states from `gh`), `no session`
 (worktree exists but no transcript found — agent never launched or launched
-oddly). Token columns are summed from the lane's Claude Code transcript
-(in = input+cache-creation, cache = cache reads).
+oddly). A ` [sub]` suffix on any verdict means the lane runs as a background
+subagent of the orchestrator session (the wave-5 mode): its telemetry comes
+from an `agent-*.jsonl` transcript under the orchestrator's project dir,
+attributed by the launch prompt naming the lane's worktree, not from a
+per-worktree terminal session. Token columns are summed from the lane's
+Claude Code transcript (in = input+cache-creation, cache = cache reads).
 
 Then gather what the tool can't see (all read-only):
 

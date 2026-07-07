@@ -18,6 +18,16 @@
  *                  MAIN project dir; we fall back to scanning that dir and
  *                  matching the lane's branch/worktree name in the first
  *                  user message (the mission brief always names the branch).
+ *                  Since wave 5 lanes may also run as BACKGROUND SUBAGENTS
+ *                  of the orchestrator session: their transcripts are
+ *                  <main project dir>/<sessionId>/subagents/agent-*.jsonl
+ *                  (top-level cwd field stays the main checkout — measured
+ *                  2026-07-07 against the wave-5 ci/earth lanes — but the
+ *                  first user message, the launch prompt, always names the
+ *                  lane's worktree path). Second fallback: scan those files
+ *                  with the same first-user-message match, newest first;
+ *                  such rows get a ' [sub]' verdict suffix so the human can
+ *                  tell terminal-session lanes from subagent lanes.
  *                  Assistant lines repeat one API message per content block
  *                  → dedupe usage by message.id before summing.
  *   4. GitHub    — `gh pr list` mapped to lanes by head branch; CI state
@@ -83,8 +93,15 @@ function esc(s) {
 
 function sanitizeCwd(p) { return p.replace(/[/.]/g, '-'); }
 
+// Overridable so the test suite can point the whole pipeline at a fixture
+// tree instead of the real ~/.claude/projects.
+function projectsRoot() {
+  return process.env.FLEET_PROJECTS_ROOT ||
+    path.join(os.homedir(), '.claude', 'projects');
+}
+
 function projectDirFor(worktreePath) {
-  return path.join(os.homedir(), '.claude', 'projects', sanitizeCwd(worktreePath));
+  return path.join(projectsRoot(), sanitizeCwd(worktreePath));
 }
 
 function listJsonl(dir) {
@@ -99,6 +116,33 @@ function listJsonl(dir) {
       if (st.isFile()) out.push({ path: p, mtime: st.mtimeMs, size: st.size });
     } catch (e) { /* raced away */ }
   }
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+
+// Background-subagent transcripts live BELOW the project dir:
+// <projectDir>/<sessionId>/subagents/(workflows/wf_*/)?agent-*.jsonl.
+// Bounded recursive walk — depth 4 reaches the workflow layer, and a hard
+// file cap keeps a pathological dir from turning observability into the
+// incident.
+const AGENT_WALK_DEPTH = 4;
+const AGENT_WALK_MAX = 500;
+
+function listAgentJsonl(projectDir) {
+  const out = [];
+  (function walk(dir, depth) {
+    if (depth > AGENT_WALK_DEPTH || out.length >= AGENT_WALK_MAX) return;
+    let names;
+    try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const ent of names) {
+      if (out.length >= AGENT_WALK_MAX) return;
+      const p = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(p, depth + 1);
+      else if (ent.isFile() && /^agent-.*\.jsonl$/.test(ent.name)) {
+        try { out.push({ path: p, mtime: fs.statSync(p).mtimeMs, size: fs.statSync(p).size }); }
+        catch (e) { /* raced away */ }
+      }
+    }
+  })(projectDir, 0);
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 
@@ -177,12 +221,16 @@ function streamLines(file, onLine) {
 }
 
 // First real user message of a session (the mission brief for lane agents).
-async function firstUserText(file) {
+// Top-level session files: skip sidechain lines (embedded Task prompts).
+// Subagent agent-*.jsonl: EVERY line is isSidechain:true (measured
+// 2026-07-07), and the first user message is the launch prompt we want —
+// callers pass allowSidechain for those.
+async function firstUserText(file, allowSidechain) {
   let text = null, seen = 0;
   await streamLines(file, (line) => {
     if (++seen > BRIEF_SCAN_LINES || line.length > MAX_LINE) return seen <= BRIEF_SCAN_LINES;
     let d; try { d = JSON.parse(line); } catch (e) { return true; }
-    if (d && d.type === 'user' && !d.isSidechain && d.message) {
+    if (d && d.type === 'user' && (allowSidechain || !d.isSidechain) && d.message) {
       const c = d.message.content;
       text = typeof c === 'string' ? c : JSON.stringify(c);
       return false;
@@ -193,21 +241,32 @@ async function firstUserText(file) {
 }
 
 // Locate the newest/active session file for a lane. Primary: the lane's own
-// sanitized project dir. Fallback (verified live against the whatif lane):
+// sanitized project dir. Fallback 1 (verified live against the whatif lane):
 // sessions launched from the main checkout land in the main repo's project
 // dir — match the brief (first user message) against branch/worktree name.
-async function findSessionFile(lane, mainDirFiles, briefCache) {
+// Fallback 2 (wave 5): background-subagent lanes — same match over the
+// orchestrator project dir's agent-*.jsonl files, newest first, so the most
+// recently active transcript wins when a lane was relaunched.
+// Returns { path, subagent } or null.
+async function findSessionFile(lane, mainDirFiles, agentFiles, briefCache) {
   const own = listJsonl(projectDirFor(lane.path));
-  if (own.length) return own[0].path;
+  if (own.length) return { path: own[0].path, subagent: false };
   const needleA = lane.branch;
   const needleB = path.basename(lane.path);
-  for (const f of mainDirFiles) { // newest-first
-    if (!(f.path in briefCache)) briefCache[f.path] = await firstUserText(f.path);
-    const brief = briefCache[f.path];
-    if (brief && ((needleA && needleA !== '?' && brief.includes(needleA)) || brief.includes(needleB))) {
-      return f.path;
+  const matchIn = async (files, allowSidechain) => {
+    for (const f of files) { // newest-first
+      if (!(f.path in briefCache)) briefCache[f.path] = await firstUserText(f.path, allowSidechain);
+      const brief = briefCache[f.path];
+      if (brief && ((needleA && needleA !== '?' && brief.includes(needleA)) || brief.includes(needleB))) {
+        return f.path;
+      }
     }
-  }
+    return null;
+  };
+  const sess = await matchIn(mainDirFiles, false);
+  if (sess) return { path: sess, subagent: false };
+  const sub = await matchIn(agentFiles, true); // subagent lines are all sidechain
+  if (sub) return { path: sub, subagent: true };
   return null;
 }
 
@@ -275,18 +334,20 @@ async function collect() {
   const { main, lanes } = await getWorktrees();
   const prs = await getPRs();
   const mainDirFiles = main ? listJsonl(projectDirFor(main.path)) : [];
+  const agentFiles = main ? listAgentJsonl(projectDirFor(main.path)) : [];
   const briefCache = {};
 
   const rows = [];
   const claimed = new Set();
 
   for (const lane of lanes) {
-    const [git, sessFile] = await Promise.all([
+    const [git, found] = await Promise.all([
       gitFacts(lane.path, false),
-      findSessionFile(lane, mainDirFiles, briefCache),
+      findSessionFile(lane, mainDirFiles, agentFiles, briefCache),
     ]);
-    if (sessFile) claimed.add(sessFile);
-    const sess = await parseSession(sessFile);
+    if (found) claimed.add(found.path);
+    const sess = await parseSession(found ? found.path : null);
+    if (sess && found.subagent) sess.subagent = true;
     const stat = statusFacts(lane.path);
     rows.push(makeRow(lane.name, lane.branch, git, stat, sess, prs.byBranch[lane.branch], now, false));
   }
@@ -319,6 +380,9 @@ function makeRow(name, branch, git, stat, sess, pr, now, isMain) {
   else if (idleMin != null && idleMin > STALL_MIN) { verdict = 'STALLED ' + fmtDur(idleMs); cls = 'amber'; }
   else                    { verdict = 'WORKING'; cls = 'ok'; }
   if (isMain && verdict === 'WORKING') verdict = 'ORCHESTRATOR';
+  // Telemetry sourced from a background-subagent transcript, not a
+  // per-worktree terminal session — mark it so the modes are tellable apart.
+  if (sess && sess.subagent) verdict += ' [sub]';
 
   return {
     name, branch, isMain, verdict, cls,
@@ -466,7 +530,17 @@ async function main() {
   console.log(renderTable(await collect()));
 }
 
-main().catch((e) => {
-  console.error('fleet error:', e && e.message ? e.message : e);
-  process.exitCode = 0;
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error('fleet error:', e && e.message ? e.message : e);
+    process.exitCode = 0;
+  });
+}
+
+// Testable internals (test/fleet.test.js drives these against a fixture
+// tree via FLEET_PROJECTS_ROOT). Not a public API.
+module.exports = {
+  sanitizeCwd, projectDirFor, projectsRoot,
+  listJsonl, listAgentJsonl, firstUserText, findSessionFile,
+  parseSession, makeRow, collect,
+};
