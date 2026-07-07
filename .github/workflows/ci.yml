@@ -1,4 +1,5 @@
-# CI — build, unit tests, and a headless-Chrome render smoke test.
+# CI — build, unit tests, a headless-Chrome render smoke test, and the full
+# Playwright e2e suite.
 #
 # Mirrors the repo's manual verification bar (CLAUDE.md / ORCHESTRATION.md):
 #   1. node build.js exits clean
@@ -7,6 +8,12 @@
 #   3. dist/index.html actually renders under headless Chrome + SwiftShader
 #      (plain --disable-gpu yields a black canvas), asserted by sampling the
 #      screenshot's pixels; the PNG is uploaded as a build artifact.
+#   4. The e2e job runs the whole tools/e2e/*.spec.js suite (npm run e2e)
+#      against the runner's preinstalled system Chrome — the same
+#      channel:'chrome' + SwiftShader recipe the specs use locally. It is a
+#      SEPARATE job so a red e2e never hides the fast smoke signal; on
+#      failure it uploads tools/e2e/artifacts/ (spec screenshots + Playwright
+#      test-results) as the debugging payload.
 name: CI
 
 on:
@@ -43,4 +50,32 @@ jobs:
         with:
           name: smoke-screenshot
           path: smoke.png
+          if-no-files-found: ignore
+
+  # Full browser e2e suite. Single worker by design (~5 min): the specs share
+  # one Chrome profile dir and assert rendered pixels, so parallelism buys
+  # nothing but flakes. The runner's preinstalled Google Chrome lives at
+  # /opt/google/chrome/chrome — exactly where Playwright's channel:'chrome'
+  # looks on Linux — so no browser download or install step is needed.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dev dependencies (Playwright test runner only)
+        run: npm install
+
+      - name: Build
+        run: node build.js
+
+      - name: Playwright e2e suite (system Chrome + SwiftShader)
+        run: npm run e2e
+
+      - name: Upload e2e failure artifacts (spec screenshots + test-results)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: tools/e2e/artifacts/
           if-no-files-found: ignore
