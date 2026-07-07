@@ -1847,3 +1847,165 @@ body.directing .toggles,
 body.directing .masthead,
 body.directing .tonight-pill,
 body.directing .hint { opacity: 0.15; transition: opacity 1.2s ease; }
+/* ---- Seeing the invisible: physics overlays panel ---------------------------- */
+.vizpanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(340px, 90vw);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(200deg, rgba(14, 19, 32, 0.94), rgba(6, 9, 16, 0.94));
+  border-left: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  transform: translateX(102%);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.vizpanel.open { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .vizpanel { transition: none; }
+}
+.vizpanel header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 26px 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.vizpanel h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.vz-sub-title {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.vizpanel header button {
+  margin-left: auto;
+  padding: 4px 9px;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.vizpanel header button:hover { color: var(--text); }
+.vz-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px 24px;
+}
+.vz-row {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(10, 14, 24, 0.5);
+  overflow: hidden;
+}
+.vz-row.vz-on { border-color: rgba(242, 166, 60, 0.4); }
+.vz-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+}
+.vz-head:hover { color: var(--text); }
+.vz-head[aria-pressed="true"] { color: var(--amber); }
+.vz-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  flex: none;
+}
+.vz-head[aria-pressed="true"] .vz-dot {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(242, 166, 60, 0.8);
+}
+.vz-title { flex: 1; }
+.vz-state {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.vz-sub { display: none; padding: 0 14px 12px; }
+.vz-row.vz-on .vz-sub { display: block; }
+.vz-label {
+  margin: 10px 0 5px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vz-chip {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.vz-chip:hover { color: var(--text); }
+.vz-chip.active {
+  color: var(--text);
+  border-color: rgba(242, 166, 60, 0.5);
+  background: rgba(242, 166, 60, 0.08);
+}
+.vz-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.vz-note:empty { display: none; }
+.vz-note b { color: var(--text); font-weight: 600; }
+.vz-hint { color: #8b96ab; font-style: italic; }
+.vz-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.vz-grad {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #3a62c4 0%, #58dfd0 45%, #ffd24a 72%, #ff6f5e 100%);
+}
+.vz-vel-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 12;
+  padding: 2px 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(6, 9, 16, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.vz-vel-label.show { opacity: 1; }

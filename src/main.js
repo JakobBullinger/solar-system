@@ -116,6 +116,12 @@
     )
   });
   ORRERY.Missions.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
+  // Physics-visualization overlays (gravity landscape, speed colours,
+  // resonance roses, the Sun's wobble) — vizpanel owns all their wiring.
+  ORRERY.VizPanel.init({
+    scene: scene, camera: camera, orbitLines: orbitLines, planets: planets,
+    getFollow: function () { return follow; }
+  });
   ORRERY.Porkchop.init();
   ORRERY.MarsPlanner.init({ scene: scene });
   ORRERY.Tour.init({
@@ -349,6 +355,7 @@
 
     comets.forEach(function (c) { ORRERY.Comets3D.update(c, jd); });
     ORRERY.Lagrange3D.update(jd);
+    ORRERY.VizPanel.tick(jd);
 
     sun.userData.mesh.rotation.y = (daysSinceEpoch * 24 / DATA.SUN.rotationHours) * Math.PI * 2;
     asteroids.rotation.y += asteroids.userData.spinRate * dt;

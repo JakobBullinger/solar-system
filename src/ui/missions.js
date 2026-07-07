@@ -347,6 +347,7 @@ ORRERY.Missions = (function () {
       posAttr.setXYZ(i, V2.x, V2.y, V2.z);
     }
     posAttr.needsUpdate = true;
+    if (ORRERY.Overlays) ORRERY.Overlays.tintPreview(previewLine, pv.points, null);
     previewLine.visible = n > 1;
 
     K.toScene(run.ls.es.pos, V1);
