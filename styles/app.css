@@ -2508,3 +2508,29 @@ body.earthorbit .panel { display: none; }
   .eo-legend { display: none; }
   .eo-caption p { display: none; }
 }
+
+/* ---- Eclipses (level 27) --------------------------------------------------
+   Almanac drawer section: eclipse rows get their own accents (solar amber-
+   on-dark, lunar copper) and a small honesty note in the section header. */
+.ev-sec {
+  padding: 12px 12px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.ev-sec-note {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-size: 10.5px;
+  color: var(--muted);
+  opacity: 0.75;
+}
+.ev-eclipse.ev-ecl-solar { border-left-color: rgba(255, 214, 90, 0.85); }
+.ev-eclipse.ev-ecl-lunar { border-left-color: rgba(226, 110, 60, 0.85); }
+.ev-eclipse .ev-date { color: var(--text); }
