@@ -346,6 +346,8 @@ ORRERY.Missions = (function () {
       posAttr.setXYZ(i, V2.x, V2.y, V2.z);
     }
     posAttr.needsUpdate = true;
+    // Speed-colours overlay may retint the arc by vis-viva (no-op when off)
+    ORRERY.Overlays.tintPreview(previewLine, pv.points, null);
     previewLine.visible = n > 1;
 
     K.toScene(run.ls.es.pos, V1);

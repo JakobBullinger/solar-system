@@ -104,6 +104,8 @@ ORRERY.Sandbox = (function () {
     }
     pos.needsUpdate = true;
     previewLine.material.color.setHex(bound ? BOUND_COLOR : ESCAPE_COLOR);
+    // Speed-colours overlay may retint the arc by vis-viva (no-op when off)
+    ORRERY.Overlays.tintPreview(previewLine, pts, 1.5 * Math.ceil(1400 / PREVIEW_N));
     previewLine.visible = n > 1;
 
     els.speed.textContent = d.kms.toFixed(0) + ' km/s · ' + (bound ? 'captured orbit' : 'escapes the Sun');
