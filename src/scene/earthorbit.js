@@ -507,6 +507,9 @@ ORRERY.EarthOrbit = (function () {
     }, function () { return MOON_DOSSIER; }, '#C4C0BA');
 
     root.updateMatrixWorld(true);
+
+    // Ascent ride-along (new module, additive hook only — see ascent.js header).
+    if (ORRERY.Ascent) ORRERY.Ascent.mount({ ctx: ctx, frame: frame, container: dom.wrap });
   }
 
   // --- Enter / exit ------------------------------------------------------------------------------
@@ -562,6 +565,7 @@ ORRERY.EarthOrbit = (function () {
 
   function exit() {
     if (!active) return;
+    if (ORRERY.Ascent && ORRERY.Ascent.active) ORRERY.Ascent.stop();
     active = false;
 
     root.visible = false;
@@ -652,7 +656,8 @@ ORRERY.EarthOrbit = (function () {
   function onKey(e) {
     if (!active) return;
     if (e.code === 'Escape') {
-      if (dom.card.classList.contains('show')) closeCard();
+      if (ORRERY.Ascent && ORRERY.Ascent.active) ORRERY.Ascent.stop();
+      else if (dom.card.classList.contains('show')) closeCard();
       else exit();
     }
   }
@@ -679,6 +684,7 @@ ORRERY.EarthOrbit = (function () {
   function tick(dt, jd) {
     if (!active) return;
     if (ctx.guards && ctx.guards()) { exit(); return; }
+    if (ORRERY.Ascent) ORRERY.Ascent.tick(dt, jd);
     tAnim += dt;
 
     // Sun direction from Earth at the sim clock (ecliptic → scene axes)
