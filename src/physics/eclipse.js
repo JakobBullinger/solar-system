@@ -210,6 +210,10 @@ ORRERY.Eclipse = (function () {
     var rs = Math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
     var ax = -s.x / rs, ay = -s.y / rs, az = -s.z / rs;
     var t = m.x * ax + m.y * ay + m.z * az;             // range down the axis
+    // The shadow axis is a RAY, not a line: on the sunward side (t ≤ 0,
+    // i.e. around new moon) there is no Earth shadow to be in — without
+    // this guard the tint fired at new moon, seen in the first e2e shot.
+    if (t <= 0) return { d: Infinity, ru: 0, rp: 0 };
     var dx = m.x - ax * t, dy = m.y - ay * t, dz = m.z - az * t;
     var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
     var Lu = rs * R_EARTH / (R_SUN - R_EARTH);

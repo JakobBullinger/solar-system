@@ -130,6 +130,15 @@ test('lunarShading: fully copper at 2026-03-03 mid-totality, clean a day later',
   ok(off.umbra === 0 && off.penumbra === 0, 'no shading one day after');
 });
 
+test('lunarShading: never fires at NEW moon (shadow axis is a ray, not a line)', function () {
+  // Regression: at new moon the Moon sits near the Sun–Earth LINE but on the
+  // sunward side; an unsigned axis distance falsely coppered it (caught by
+  // the first e2e screenshot of the 2026-08-12 solar eclipse).
+  const s = O.Eclipse.lunarShading(jdUTC(2026, 8, 12, 17, 46));
+  ok(s.umbra === 0 && s.penumbra === 0,
+    'no lunar shading at solar-eclipse maximum, got ' + JSON.stringify(s));
+});
+
 test('event rows carry the almanac-ui contract', function () {
   events.forEach(function (e) {
     ok(e.kind === 'eclipse', 'kind');
