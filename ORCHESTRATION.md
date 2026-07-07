@@ -133,6 +133,13 @@ accidentally verifying the forged-link guard too.
   before designing goals. Both agents found the textbook answer wrong for
   our integrator and designed honestly around measurements. Put "measure
   first" in any brief whose win conditions depend on close-encounter physics.
+- **After any hand resolution in app.css, count braces FIRST.** Wave 6's
+  final merge dropped a `}` when the conflict hunk split a media query —
+  one `python3 -c "s=open('styles/app.css').read(); print(s.count('{'),
+  s.count('}'))"` against both parents caught it before commit (both
+  parents balanced + merged imbalanced = the resolution ate a brace). Then
+  still run both sides' computed-style e2e guards; balance is necessary,
+  not sufficient.
 - **Hand-resolved CSS merges can silently swallow rules.** A marker-strip
   resolution spliced one block into the middle of a rule; braces stayed
   balanced file-wide, so the sheet parsed — but CSS Nesting made ~300 lines
