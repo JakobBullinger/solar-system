@@ -28,7 +28,8 @@
   scene.add(sunLight);
 
   // --- Build the system -----------------------------------------------------
-  scene.add(ORRERY.Environment.starfield());
+  var starfield = ORRERY.Environment.starfield();
+  scene.add(starfield);
   var asteroids = ORRERY.Environment.asteroidBelt();
   var kuiper = ORRERY.Environment.kuiperBelt();
   scene.add(asteroids, kuiper);
@@ -122,6 +123,25 @@
     flyHome: flyHome,
     controls: controls
   });
+  // Powers of Ten: scrolling out past maxDistance hands the camera to the
+  // cosmic zoom (cosmos.js), which fades the orrery and takes over until
+  // the user scrolls back in. Everything cosmos needs to fade is passed
+  // here; it never touches anything else.
+  ORRERY.Cosmos.init({
+    scene: scene, camera: camera, canvas: canvas, controls: controls,
+    orrery: {
+      orbitLines: orbitLines,
+      belts: [asteroids, kuiper],
+      solids: [sun].concat(planets, comets, [lagrange.group]),
+      starfield: starfield,
+      labelsOn: function () { return opts.labels; }
+    },
+    guards: function () {
+      return ORRERY.Ride.active || ORRERY.Tour.active ||
+        ORRERY.Sandbox.active || ORRERY.Missions.active;
+    },
+    onEnter: function () { follow = null; flyT = 1; }
+  });
 
   // Planet nav rail
   var rail = document.getElementById('rail');
@@ -189,6 +209,7 @@
   }
 
   function select(entry) {
+    if (ORRERY.Cosmos.active) ORRERY.Cosmos.exit(); // chip click from deep space → come home
     focus(entry, 1);
     ORRERY.Panel.show(entry);
     selectables.forEach(function (s) {
@@ -213,6 +234,7 @@
     if (ORRERY.Tour.active) return;    // no dossier pop-ups mid-tour
     if (ORRERY.Ride.active) return;    // the ride owns the camera
     if (ORRERY.Missions.aiming) return; // aiming owns the pointer
+    if (ORRERY.Cosmos.active) return;   // cosmos does its own screen-space picking
     if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return; // drag, not click
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -274,6 +296,7 @@
 
     ORRERY.Sandbox.tick(jdPrev, jd);
     ORRERY.Missions.tick(jd);
+    ORRERY.Cosmos.tick(dt, jd);
     jdPrev = jd;
 
     // Positions from the physics
