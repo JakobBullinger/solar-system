@@ -757,6 +757,10 @@ ORRERY.Sandbox = (function () {
   function setMode(on) {
     active = on;
     els.hud.classList.toggle('show', on);
+    // Coarse pointers see planet labels as click-through while aiming (CSS
+    // mobile-audit fix): a touch drag that begins on a label button gets
+    // pointer-cancelled by the browser and never reaches the canvas.
+    document.body.classList.toggle('sandboxing', on);
     canvas.style.cursor = on ? 'crosshair' : '';
     if (!on && dragging) endAim();
     if (on) updateHud();

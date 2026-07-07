@@ -598,8 +598,16 @@ ORRERY.Cosmos = (function () {
     var ruler = el('div', 'cz-ruler', dom.wrap);
     dom.rulerBar = el('div', 'cz-ruler-bar', ruler);
     dom.rulerTxt = el('span', 'cz-ruler-txt', ruler);
-    dom.hint = el('div', 'cz-hint', dom.wrap,
-      'scroll out to keep going · scroll in to come home');
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    dom.hint = el('div', 'cz-hint', dom.wrap, coarse
+      ? 'pinch out to keep going · pinch in to come home'
+      : 'scroll out to keep going · scroll in to come home');
+
+    // Touch has no Esc key: a visible way home (CSS shows it for coarse
+    // pointers only — the desktop cockpit stays chrome-free).
+    dom.exit = el('button', 'cz-exit', dom.wrap, '✕ Solar system');
+    dom.exit.addEventListener('click', exit);
+
     dom.labelLayer = el('div', 'cz-labels', document.body);
 
     dom.card = el('aside', 'cz-card', document.body);
@@ -844,23 +852,52 @@ ORRERY.Cosmos = (function () {
   }
 
   // --- Wheel handoff ----------------------------------------------------------------------
-  function onWheel(e) {
+  // Shared by the wheel and the pinch (below): deltaY > 0 means "zoom out".
+  function zoomIntent(e, deltaY) {
     if (!ctx) return;
     if (active) {
-      e.preventDefault();
-      targetL = Math.min(L_MAX, targetL + e.deltaY * WHEEL_RATE);
+      if (e.cancelable) e.preventDefault();
+      targetL = Math.min(L_MAX, targetL + deltaY * WHEEL_RATE);
       if (targetL < L_MIN - 0.10) exit();
       return;
     }
-    if (e.deltaY <= 0) return;
+    if (deltaY <= 0) return;
     if (ctx.guards && ctx.guards()) return;
     var dist = ctx.camera.position.distanceTo(ctx.controls.target);
     if (dist >= ctx.controls.maxDistance * 0.985) {
-      overs += e.deltaY;
-      if (overs > 40) { e.preventDefault(); enter(); }
+      overs += deltaY;
+      if (overs > 40) { if (e.cancelable) e.preventDefault(); enter(); }
     } else {
       overs = 0;
     }
+  }
+
+  function onWheel(e) { zoomIntent(e, e.deltaY); }
+
+  // --- Touch handoff (the pinch mirror of the wheel; mobile audit fix) --------------------
+  // Touch has no wheel: two-finger pinch gap deltas feed the SAME thresholds
+  // (fingers closing = wheel-out, deltaY > 0). Inside the mode OrbitControls
+  // zoom is disabled, so the pinch owns L directly — the only touch path
+  // through the stages. PINCH_TO_WHEEL converts px of gap change into
+  // wheel-notch px so entry/exit accumulators behave identically.
+  var PINCH_TO_WHEEL = 3;
+  var pinchGap = 0;
+  function gapOf(e) {
+    return Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY);
+  }
+  function onTouchStart(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);
+  }
+  function onTouchMove(e) {
+    if (e.touches.length !== 2) return;
+    var g = gapOf(e);
+    var deltaY = (pinchGap - g) * PINCH_TO_WHEEL;
+    pinchGap = g;
+    zoomIntent(e, deltaY);
+  }
+  function onTouchEnd(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);   // 3 → 2 fingers: re-seed
   }
 
   function onKey(e) {
@@ -875,6 +912,9 @@ ORRERY.Cosmos = (function () {
   function init(options) {
     ctx = options;
     ctx.canvas.addEventListener('wheel', onWheel, { passive: false });
+    ctx.canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    ctx.canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    ctx.canvas.addEventListener('touchend', onTouchEnd, { passive: true });
     ctx.canvas.addEventListener('pointerdown', onPointerDown);
     ctx.canvas.addEventListener('pointerup', onPointerUp);
     window.addEventListener('keydown', onKey);

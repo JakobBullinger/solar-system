@@ -812,6 +812,9 @@ ORRERY.Missions = (function () {
     }
     els.hud.innerHTML = h;
     els.hud.classList.toggle('show', state !== 'closed');
+    // Same coarse-pointer label click-through as the sandbox (CSS mobile-audit
+    // fix): while a burn is being aimed/planned the canvas owns every touch.
+    document.body.classList.toggle('ms-aiming', state === 'aim' || state === 'plan');
     els.flightStatus = document.getElementById('ms-flight');
 
     els.hud.querySelectorAll('[data-i]').forEach(function (btn) {

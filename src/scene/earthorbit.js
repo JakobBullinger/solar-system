@@ -359,7 +359,9 @@ ORRERY.EarthOrbit = (function () {
     dom.rulerTxt = el('span', 'eo-ruler-txt', ruler);
 
     dom.hint = el('div', 'eo-hint', dom.wrap,
-      'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
+      window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+        ? 'drag to orbit · pinch from the cloud tops to the Moon · ✕ returns to the solar system'
+        : 'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
 
     dom.exit = el('button', 'eo-exit', dom.wrap, '✕ Solar system');
     dom.exit.id = 'eo-exit';
@@ -576,14 +578,19 @@ ORRERY.EarthOrbit = (function () {
   }
 
   // --- Wheel handoff (mirror of the cosmos wheel-out) ----------------------------------------------
-  function onWheel(e) {
+  // Shared by the wheel and the pinch (below): deltaY < 0 means "zoom in".
+  // Both demand an active follow on Earth — on narrow phones the full-screen
+  // info panel makes that state unpinchable (the Explore-menu row is the
+  // touch entry there); on tablet-sized touch screens the pinch mirrors the
+  // wheel exactly.
+  function zoomIntent(e, deltaY) {
     if (!ctx) return;
     if (active) {
-      // wheeling out past the mode's max distance → back to the solar system
-      if (e.deltaY > 0) {
+      // zooming out past the mode's max distance → back to the solar system
+      if (deltaY > 0) {
         var d = ctx.camera.position.distanceTo(ctx.controls.target);
         if (d >= MAX_D * 0.985) {
-          oversOut += e.deltaY;
+          oversOut += deltaY;
           if (oversOut > 60) exit();
         } else {
           oversOut = 0;
@@ -591,17 +598,44 @@ ORRERY.EarthOrbit = (function () {
       }
       return;                              // OrbitControls owns normal zoom
     }
-    if (e.deltaY >= 0) return;
+    if (deltaY >= 0) return;
     if (ctx.guards && ctx.guards()) return;
     var f = ctx.getFollow ? ctx.getFollow() : null;
     if (!f || f !== ctx.earthEntry) { oversIn = 0; return; }
     var dist = ctx.camera.position.distanceTo(ctx.controls.target);
     if (dist <= ctx.controls.minDistance * 1.05) {
-      oversIn -= e.deltaY;
-      if (oversIn > 40) { e.preventDefault(); enter(); }
+      oversIn -= deltaY;
+      if (oversIn > 40) { if (e.cancelable) e.preventDefault(); enter(); }
     } else {
       oversIn = 0;
     }
+  }
+
+  function onWheel(e) { zoomIntent(e, e.deltaY); }
+
+  // --- Touch handoff (the pinch mirror of the wheel; mobile audit fix) --------------------------
+  // Pinch gap deltas feed the SAME entry/exit thresholds the wheel uses
+  // (fingers opening = wheel-in, deltaY < 0). OrbitControls keeps owning the
+  // actual dolly in both regimes; this only watches for the past-the-stop
+  // intent, exactly like the wheel accumulators.
+  var PINCH_TO_WHEEL = 3;
+  var pinchGap = 0;
+  function gapOf(e) {
+    return Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY);
+  }
+  function onTouchStart(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);
+  }
+  function onTouchMove(e) {
+    if (e.touches.length !== 2) return;
+    var g = gapOf(e);
+    var deltaY = (pinchGap - g) * PINCH_TO_WHEEL;
+    pinchGap = g;
+    zoomIntent(e, deltaY);
+  }
+  function onTouchEnd(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);   // 3 → 2 fingers: re-seed
   }
 
   function onKey(e) {
@@ -616,6 +650,9 @@ ORRERY.EarthOrbit = (function () {
   function init(options) {
     ctx = options;
     ctx.canvas.addEventListener('wheel', onWheel, { passive: false });
+    ctx.canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    ctx.canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    ctx.canvas.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKey);
     var opt = document.getElementById('opt-earth');
     if (opt) {
