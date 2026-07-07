@@ -16,6 +16,7 @@ const VENDOR = ['vendor/three.min.js', 'vendor/OrbitControls.js'];
 // Dependency order matters: data → physics → scene → ui → main
 const MODULES = [
   'src/data/bodies.js',
+  'src/data/marsmissions.js',
   'src/physics/kepler.js',
   'src/physics/almanac.js',
   'src/physics/nbody.js',
@@ -37,6 +38,7 @@ const MODULES = [
   'src/ui/replays.js',
   'src/ui/missions.js',
   'src/ui/porkchop.js',
+  'src/ui/marsplanner.js',
   'src/ui/challenge.js',
   'src/ui/permalink.js',
   'src/main.js'

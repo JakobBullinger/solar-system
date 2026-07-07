@@ -35,12 +35,16 @@ ORRERY.Lagrange3D = (function () {
       fact: 'The quietest observatory site humanity has found: 1.5 million km ' +
         'down-Sun, where one shield can block Sun, Earth and Moon together. ' +
         'JWST and Euclid trace slow halo orbits around this empty point — ' +
-        'unstable, so they spend a little fuel every month refusing to fall off.',
+        'unstable, so they spend a little fuel every month refusing to fall off. ' +
+        'It is also a waiting room: NASA’s twin ESCAPADE orbiters are loitering ' +
+        'here right now until the Mars window opens in Nov 2026 — their route is ' +
+        'drawn in the Mars planner (top right).',
       stats: [
         ['Distance from Earth', '1.5 million km'],
         ['Stability', 'Unstable — saddle point'],
         ['Halo orbit period', '~6 months'],
-        ['Residents', 'JWST · Euclid · Gaia (2014–25)']
+        ['Residents', 'JWST · Euclid · Gaia (2014–25)'],
+        ['In the waiting room', 'ESCAPADE Blue + Gold — departs for Mars Nov 2026']
       ]
     },
     {
