@@ -63,10 +63,12 @@ still merge into a broken main).
 Minimum bar (both layers, from `.claude/skills/headless-check`):
 
 1. `node build.js` exits clean.
-2. Headless screenshot shows a rendered scene — Chrome with
+2. `npm test` green (since 2026-07-06: zero-dep suite in `test/`, ~1.5 s —
+   the trajectory regression guard is the canary for any physics edit).
+3. Headless screenshot shows a rendered scene — Chrome with
    `--use-angle=swiftshader --enable-unsafe-swiftshader
    --force-prefers-reduced-motion` (plain `--disable-gpu` = black canvas).
-3. The changed feature exercised end-to-end: a targeted permalink/`?ch=`
+4. The changed feature exercised end-to-end: a targeted permalink/`?ch=`
    screenshot, a behavioral check via CDP, or driving
    `ORRERY.Sandbox.tick(jd, jd+n)` directly (long time-lapses can't use
    virtual time).
@@ -80,6 +82,29 @@ round-trip; the orchestrator independently re-screenshotted main with a
 fresh in-budget `?ch=` link and confirmed banner + en-route HUD — and the
 first attempt with an over-budget vector correctly fell back gracefully,
 accidentally verifying the forged-link guard too.
+
+## Process lessons (waves 1–2, levels 13–19)
+
+- **Agents forget the final rebase.** Two of five lanes wrote `.agent-done`
+  from a stale base because inbox rebase requests arrived mid-verification
+  and were never re-read. Rule now IN THE BRIEFS: the last two acts before
+  `.agent-done` are (1) re-read `.orchestrator-inbox.md`, (2) rebase onto
+  current main and re-run `npm test`. The orchestrator can hand-resolve a
+  stale merge (it's the usual README/append conflicts), but shouldn't have to.
+- **Machine sleep stalls everything silently.** An overnight laptop sleep
+  froze an agent mid-verification and the filesystem watcher with it; nothing
+  surfaced until morning. Mitigation: on resume, check every lane's
+  `.agent-status.md` mtime first. Real fix: the v2 PR flow below (state lives
+  on GitHub, not in suspended sessions).
+- **Physics-honesty-first briefs pay off.** Two features (Cassini assists,
+  capture orbits) hinged on measuring what the integrator actually does
+  before designing goals. Both agents found the textbook answer wrong for
+  our integrator and designed honestly around measurements. Put "measure
+  first" in any brief whose win conditions depend on close-encounter physics.
+- **The knowledge base compounds.** Wave-2 briefs were a third the length of
+  wave-1's because CLAUDE.md + skills + this file carry the conventions; the
+  level-19 agent fact-checked and corrected its own brief against the code.
+  Keep promoting lane discoveries into CLAUDE.md's physics notes.
 
 ## v2: PR-based flow (planned)
 
