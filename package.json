@@ -5,6 +5,10 @@
   "scripts": {
     "build": "node build.js",
     "dev": "node serve.js",
-    "test": "node test/run.js"
+    "test": "node test/run.js",
+    "e2e": "playwright test --config tools/e2e/playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }
