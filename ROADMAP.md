@@ -5,12 +5,23 @@ how we work is in ORCHESTRATION.md. Keep this file updated when plans change —
 it is the only place forward plans live *in the repo* (session memory mirrors
 it but is machine-local).
 
-## In flight
+## In flight (wave 6, launched 2026-07-07 evening, background-subagent lanes)
 
-(nothing — wave 5 landed 2026-07-07: the CI e2e gate (PR #9, which caught
-and held a real flake on its first day) and Level 24 Earth Orbit & Starlink
-(PR #10). Level 21 Mission Control remains gated on human playtest feedback
-about mission pars/difficulty.)
+- **PR previews** (`../solar-system-previews`, `feature/pr-previews`):
+  hosting-arc step 3 — per-PR live URLs on Pages + auto-comment + cleanup.
+  Merges FIRST (then the sibling PRs get preview links).
+- **Level 27 — Eclipse finder** (`../solar-system-eclipse`,
+  `feature/eclipse-finder`, port 4174): real truncated-series lunar position
+  (`physics/moon.js` — the deliberately-deferred "real lunar elements"
+  moment), syzygy eclipse search verified vs the published canon (incl.
+  2026-08-12 total), almanac section + umbra-sweep spectacle.
+- **Mobile/touch audit** (`../solar-system-mobile`, `feature/mobile-touch`,
+  port 4176): Playwright touch-emulation audit of waves 3–5 modes, fix
+  unreachable/broken touch paths (Earth-orbit + cosmos pinch entries,
+  drags, drawers), `mobile.spec.js`. Merges LAST (broadest UI surface).
+
+Level 21 Mission Control remains gated on human playtest feedback about
+mission pars/difficulty (user: "later").
 
 ## Next, in order
 
