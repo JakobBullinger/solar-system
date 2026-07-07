@@ -52,6 +52,7 @@ const MODULES = [
   'src/ui/challenge.js',
   'src/ui/director.js',
   'src/ui/permalink.js',
+  'src/ui/header.js',
   'src/main.js'
 ];
 

@@ -297,6 +297,7 @@
   });
   ORRERY.Challenge.init();   // a ?ch= link starts a ghost mission replay
   ORRERY.Tour.maybeOffer();
+  ORRERY.Header.init();      // after the features: it observes their buttons
 
   // --- Render loop -------------------------------------------------------------
   var clock = new THREE.Clock();
