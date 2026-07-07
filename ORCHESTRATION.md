@@ -20,39 +20,63 @@ Worktree convention: `../solar-system-<name>` on `feature/<name>`, dev server
 port 4174+ (main uses 4173). Example wave 1: `links` (challenge links, 4174),
 `burns` (mid-course burns, 4175), `replays` (mission replays, 4176).
 
-## Communication protocol (filesystem, v1)
+## Communication protocol (v2, PR-based — ACTIVE since 2026-07-07)
 
-No direct messaging — three untracked files per worktree, all listed in
-`.git/info/exclude` (shared across worktrees; never commit them):
+Live progress and orchestrator→agent nudges stay on the filesystem; the
+done-signal is now a pull request. Untracked local files (in
+`.git/info/exclude`, never commit them):
 
-| File | Writer | Meaning |
+| Channel | Writer | Meaning |
 |---|---|---|
 | `.agent-status.md` | agent | append-only progress log (`HH:MM message`) |
-| `.agent-done` | agent | feature finished **and verified**; body = handoff summary (what changed, how it was verified, merge caveats) |
-| `.orchestrator-inbox.md` | orchestrator | instructions/nudges for the agent (e.g. "rebase onto main, level N landed") |
+| `.orchestrator-inbox.md` | orchestrator | instructions/nudges for the agent |
+| **pull request** | agent | replaces v1's `.agent-done`: feature finished **and verified**; the PR body is the handoff (what changed / how verified / merge caveats) |
 
-The orchestrator runs a background watcher polling for `.agent-done` every
-60 s with a 30-min heartbeat; on heartbeat it reads status files + branch
-logs, nudges via inbox, and pushes agent branches to origin as backup.
-Restart the watcher each orchestrator session while agents are active.
+Agent finish sequence — the FINAL FIVE ACTS, in order, none skippable:
+1. Re-read `.orchestrator-inbox.md`.
+2. `git rebase main` (fresh main — `git fetch` first if in doubt).
+3. `npm test` green + your headless e2e still passing post-rebase.
+4. `git push -u origin feature/<name>` (your branch only — never main).
+5. `gh pr create --title "Level N: <feature>" --body "<handoff>"`.
+
+Prerequisites (already configured on this machine): `gh auth status` must
+show **JakobBullinger** as the active account (`gh auth switch -u
+JakobBullinger` if the work account is active); pushes ride the
+`github-personal` SSH alias regardless of `gh`.
+
+The orchestrator's watcher polls `gh pr list --state open` (survives laptop
+sleep — PR state lives on GitHub, not in a suspended session) with a 30-min
+heartbeat; on heartbeat it reads status files + branch logs and nudges via
+inbox. CI (`.github/workflows/ci.yml`) runs build + `npm test` + headless
+smoke on every PR automatically.
 
 ## Integration procedure
 
-Merge order matters when branches touch the same modules (wave 1: links →
-burns → replays, all overlapping in `missions.js`). Agents never push to
-main. For each `.agent-done`:
+Merge order matters when branches touch the same modules. Agents never
+push to main. For each open PR:
 
-1. Read the `.agent-done` handoff + `git diff main...branch --stat`.
-2. `git merge feature/<name>` in the main checkout. Expected conflict:
-   the README log table — every branch adds its own "level N" row; keep all
-   rows in level order.
-3. Verify on main (see below).
-4. `git push origin main`.
-5. Redeploy `dist/index.html` to the hosted artifact URL (see the deploy
-   skill / orrery-workflow memory).
+1. Read the PR body (handoff) + `gh pr diff <n>` / `git diff main...branch --stat`.
+2. Wait for CI green on the PR (`gh pr checks <n>`) — the orchestrator no
+   longer re-runs build/test basics by hand; it does feature-specific
+   end-to-end checks only.
+3. `git merge --no-ff feature/<name>` in the main checkout (local merge keeps
+   the working tree for immediate verification; close the PR as merged when
+   pushing). Expected conflict: the README log table — keep rows in level order.
+4. Verify on main (see below), `git push origin main` (auto-closes the PR).
+5. Redeploy `dist/index.html` to the hosted artifact URL (deploy skill).
 6. Tell remaining agents via their inboxes to rebase onto main.
-7. `git worktree remove ../solar-system-<name>` + `git branch -d` (agents
-   may have already self-cleaned per CLAUDE.md worktree discipline).
+7. `git worktree remove ../solar-system-<name>` + delete the local branch;
+   delete the remote branch via the PR UI or leave as history (orchestrator
+   does NOT force-delete remote branches).
+
+## v1 protocol (retired 2026-07-07)
+
+Waves 1–3 (levels 13–19, 22–23) used an `.agent-done` marker file instead of
+PRs, with a filesystem watcher. It worked but was invisible off-machine, had
+no enforced verification gate, and stalled silently through machine sleep.
+If `gh` auth is ever broken, v1 remains the documented fallback: write the
+handoff to `.agent-done` at the worktree root and the orchestrator's file
+watcher takes over.
 
 ## Verification procedure
 
@@ -106,30 +130,8 @@ accidentally verifying the forged-link guard too.
   level-19 agent fact-checked and corrected its own brief against the code.
   Keep promoting lane discoveries into CLAUDE.md's physics notes.
 
-## v2: PR-based flow (planned)
+## Later, if wanted
 
-The filesystem protocol works but is invisible outside the machine and has
-no enforced gate between "agent says verified" and "merged". The upgrade:
-
-1. **Agents open PRs instead of touching `.agent-done`.** On finish:
-   `git push -u origin feature/<name>` then `gh pr create` with the handoff
-   summary (what/how-verified/merge-caveats) as the PR body. The PR replaces
-   `.agent-done`; `.agent-status.md` stays for live progress.
-2. **CI verifies every PR** (`.github/workflows/ci.yml`): `node build.js` +
-   headless Chrome smoke screenshot (uploaded as an Actions artifact) + a
-   non-black-canvas pixel check. The orchestrator stops re-running the
-   basics by hand and only does feature-specific end-to-end checks.
-3. **Orchestrator reviews the PR** (`/review` or the code-review skill),
-   merges in dependency order via `gh pr merge --merge`, still redeploys the
-   artifact manually (the Artifact tool only exists in a Claude session).
-4. **Watcher becomes `gh pr list --state open` polling** — survives machine
-   sleep, and branch backup is free because branches live on origin.
-5. Later, if wanted: branch protection requiring CI green before merge;
-   auto-generated PR review checklists per touched module; a deploy job
-   that publishes `dist/index.html` to GitHub Pages as a second, always-on
-   mirror of the artifact.
-
-**Blocker:** `gh` on this machine is authenticated to the work account only;
-this repo lives on the personal account (`JakobBullinger/solar-system`).
-Agents can't open PRs until `gh` has personal-account auth (see the
-repo-migration memory for how to re-auth). Until then, v1 protocol stays.
+Branch protection requiring CI green before merge; auto-generated PR review
+checklists per touched module; a deploy job publishing `dist/index.html` to
+GitHub Pages as a second, always-on mirror of the artifact.
