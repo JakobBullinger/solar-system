@@ -147,9 +147,28 @@
     },
     guards: function () {
       return ORRERY.Ride.active || ORRERY.Tour.active ||
-        ORRERY.Sandbox.active || ORRERY.Missions.active;
+        ORRERY.Sandbox.active || ORRERY.Missions.active || ORRERY.EarthOrbit.active;
     },
     onEnter: function () { follow = null; }   // cosmos cancels flights itself
+  });
+  // The zoom-IN mirror of cosmos: an Earth-centered km/minutes regime with
+  // the Starlink constellation (earthorbit.js). Entered from the Explore
+  // menu or by wheeling in past max zoom while focused on Earth; it hides
+  // the orrery solids (starfield stays) and restores everything on exit.
+  ORRERY.EarthOrbit.init({
+    scene: scene, camera: camera, canvas: canvas, controls: controls,
+    earthEntry: registry['earth'],
+    orrery: {
+      roots: [sun, orbitLines, asteroids, kuiper, lagrange.group]
+        .concat(planets, comets),
+      labelsOn: function () { return opts.labels; }
+    },
+    guards: function () {
+      return ORRERY.Ride.active || ORRERY.Tour.active ||
+        ORRERY.Sandbox.active || ORRERY.Missions.active || ORRERY.Cosmos.active;
+    },
+    getFollow: function () { return follow; },
+    onEnter: function () { follow = null; }
   });
   // Idle attract mode: slow composed shots once nothing has been touched
   // for a while; any mode that owns the camera or the screen blocks it.
@@ -162,6 +181,7 @@
     guards: function () {
       return ORRERY.Ride.active || ORRERY.Tour.active || ORRERY.Sandbox.active ||
         ORRERY.Missions.active || ORRERY.Cosmos.active || ORRERY.Replays.active ||
+        ORRERY.EarthOrbit.active ||
         !!document.querySelector('#panel.open, #events.open, #porkchop.open, #marsplan.open');
     }
   });
@@ -230,6 +250,7 @@
 
   function select(entry) {
     if (ORRERY.Cosmos.active) ORRERY.Cosmos.exit(); // chip click from deep space → come home
+    if (ORRERY.EarthOrbit.active) ORRERY.EarthOrbit.exit(); // same from Earth orbit
     focus(entry, 1);
     ORRERY.Panel.show(entry);
     selectables.forEach(function (s) {
@@ -255,6 +276,7 @@
     if (ORRERY.Ride.active) return;    // the ride owns the camera
     if (ORRERY.Missions.aiming) return; // aiming owns the pointer
     if (ORRERY.Cosmos.active) return;   // cosmos does its own screen-space picking
+    if (ORRERY.EarthOrbit.active) return; // earth orbit picks via its labels/legend
     if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return; // drag, not click
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -317,6 +339,7 @@
     ORRERY.Sandbox.tick(jdPrev, jd);
     ORRERY.Missions.tick(jd);
     ORRERY.Cosmos.tick(dt, jd);
+    ORRERY.EarthOrbit.tick(dt, jd);
     ORRERY.TrajAnim.tick(dt, jd);   // after Sandbox: draw-ins own draw ranges
     ORRERY.OrbitFlow.tick(jd);
     ORRERY.Director.tick(dt);
@@ -333,7 +356,8 @@
         group.visible = pv.alive !== false;
       } else {
         K.scenePosition(b.el, jd, group.position);
-        if (!group.visible) group.visible = true;
+        // Earth-orbit mode owns solids' visibility while active
+        if (!group.visible && !ORRERY.EarthOrbit.active) group.visible = true;
       }
 
       // Axial spin (rotationHours sign encodes retrograde)
@@ -372,7 +396,7 @@
     sun.userData.mesh.rotation.y = (daysSinceEpoch * 24 / DATA.SUN.rotationHours) * Math.PI * 2;
     // Belts are decorative point clouds that do not integrate — massive
     // mode hides them honestly (the sandbox caption says so).
-    asteroids.visible = kuiper.visible = !ORRERY.NBody.promoted;
+    asteroids.visible = kuiper.visible = !ORRERY.NBody.promoted && !ORRERY.EarthOrbit.active;
     asteroids.rotation.y += asteroids.userData.spinRate * dt;
     kuiper.rotation.y += kuiper.userData.spinRate * dt;
 
