@@ -2559,6 +2559,80 @@ body.earthorbit .panel { display: none; }
   .sandbox-hud { max-height: calc(100vh - 210px - 94px); }
 }
 
+/* ---- Mobile & touch (touch-audit fixes) --------------------------------------
+   Appended as one block (lane: feature/mobile-touch). Everything here is
+   additive and scoped to coarse pointers or narrow viewports — desktop
+   rendering is untouched. */
+
+/* Cosmos has no Esc and no wheel on touch: a visible way home. Hidden for
+   fine pointers so the desktop cockpit stays chrome-free. */
+.cz-exit {
+  display: none;
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  padding: 10px 16px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(10, 14, 24, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  pointer-events: auto;
+}
+@media (pointer: coarse) {
+  .cz-exit { display: block; }
+}
+
+/* Touch drags that begin on a planet label are pointer-cancelled by the
+   browser (tap targets magnetize nearby touches), so a launch/burn drag dies
+   before it reaches the canvas. While an aim mode owns the canvas, coarse
+   pointers see the label layer as click-through; mouse users keep label
+   clicks (they can aim around them). */
+@media (pointer: coarse) {
+  body.sandboxing #labels,
+  body.sandboxing #labels .planet-label,
+  body.ms-aiming #labels,
+  body.ms-aiming #labels .planet-label { pointer-events: none; }
+}
+
+@media (max-width: 720px) {
+  /* An OPEN header menu must win the phone screen: lift the header above the
+     HUDs (same z tier, later in DOM) and mute the two overlays the audit
+     caught eating menu taps — the first-visit tour offer overlaps the bottom
+     menu items, the sandbox HUD covers the whole menu. */
+  body:has(.hdr-menu.open) .hdr { z-index: 26; }
+  body:has(.hdr-menu.open) .tour-offer,
+  body:has(.hdr-menu.open) .sandbox-hud,
+  body:has(.hdr-menu.open) .missions-hud {
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* All eight Explore items fit without scrolling on a 664px-tall phone
+     (Events sat below the fold at the old reserve). */
+  .hdr-menu { max-height: calc(100vh - 170px); }
+
+  /* Finger-sized close targets: the drawers' ✕ buttons measured 28×28. */
+  #mp-close, #ev-close, #pc-close, #p-close, #rp-close,
+  #vizpanel header button,
+  .eo-card-close, .cz-card-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The Mars planner header (and its ✕) scrolled away with the timeline. */
+  .marsplan header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(18, 13, 14, 0.96);
+  }
+
+  /* Timebar scrubbing: a 16px hit strip is a fiddly finger target. */
+  #tb-slider { height: 30px; }
+}
+
 </style>
 
 <canvas id="scene" aria-label="Interactive 3D solar system"></canvas>
@@ -8691,8 +8765,16 @@ ORRERY.Cosmos = (function () {
     var ruler = el('div', 'cz-ruler', dom.wrap);
     dom.rulerBar = el('div', 'cz-ruler-bar', ruler);
     dom.rulerTxt = el('span', 'cz-ruler-txt', ruler);
-    dom.hint = el('div', 'cz-hint', dom.wrap,
-      'scroll out to keep going · scroll in to come home');
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    dom.hint = el('div', 'cz-hint', dom.wrap, coarse
+      ? 'pinch out to keep going · pinch in to come home'
+      : 'scroll out to keep going · scroll in to come home');
+
+    // Touch has no Esc key: a visible way home (CSS shows it for coarse
+    // pointers only — the desktop cockpit stays chrome-free).
+    dom.exit = el('button', 'cz-exit', dom.wrap, '✕ Solar system');
+    dom.exit.addEventListener('click', exit);
+
     dom.labelLayer = el('div', 'cz-labels', document.body);
 
     dom.card = el('aside', 'cz-card', document.body);
@@ -8937,23 +9019,52 @@ ORRERY.Cosmos = (function () {
   }
 
   // --- Wheel handoff ----------------------------------------------------------------------
-  function onWheel(e) {
+  // Shared by the wheel and the pinch (below): deltaY > 0 means "zoom out".
+  function zoomIntent(e, deltaY) {
     if (!ctx) return;
     if (active) {
-      e.preventDefault();
-      targetL = Math.min(L_MAX, targetL + e.deltaY * WHEEL_RATE);
+      if (e.cancelable) e.preventDefault();
+      targetL = Math.min(L_MAX, targetL + deltaY * WHEEL_RATE);
       if (targetL < L_MIN - 0.10) exit();
       return;
     }
-    if (e.deltaY <= 0) return;
+    if (deltaY <= 0) return;
     if (ctx.guards && ctx.guards()) return;
     var dist = ctx.camera.position.distanceTo(ctx.controls.target);
     if (dist >= ctx.controls.maxDistance * 0.985) {
-      overs += e.deltaY;
-      if (overs > 40) { e.preventDefault(); enter(); }
+      overs += deltaY;
+      if (overs > 40) { if (e.cancelable) e.preventDefault(); enter(); }
     } else {
       overs = 0;
     }
+  }
+
+  function onWheel(e) { zoomIntent(e, e.deltaY); }
+
+  // --- Touch handoff (the pinch mirror of the wheel; mobile audit fix) --------------------
+  // Touch has no wheel: two-finger pinch gap deltas feed the SAME thresholds
+  // (fingers closing = wheel-out, deltaY > 0). Inside the mode OrbitControls
+  // zoom is disabled, so the pinch owns L directly — the only touch path
+  // through the stages. PINCH_TO_WHEEL converts px of gap change into
+  // wheel-notch px so entry/exit accumulators behave identically.
+  var PINCH_TO_WHEEL = 3;
+  var pinchGap = 0;
+  function gapOf(e) {
+    return Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY);
+  }
+  function onTouchStart(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);
+  }
+  function onTouchMove(e) {
+    if (e.touches.length !== 2) return;
+    var g = gapOf(e);
+    var deltaY = (pinchGap - g) * PINCH_TO_WHEEL;
+    pinchGap = g;
+    zoomIntent(e, deltaY);
+  }
+  function onTouchEnd(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);   // 3 → 2 fingers: re-seed
   }
 
   function onKey(e) {
@@ -8968,6 +9079,9 @@ ORRERY.Cosmos = (function () {
   function init(options) {
     ctx = options;
     ctx.canvas.addEventListener('wheel', onWheel, { passive: false });
+    ctx.canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    ctx.canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    ctx.canvas.addEventListener('touchend', onTouchEnd, { passive: true });
     ctx.canvas.addEventListener('pointerdown', onPointerDown);
     ctx.canvas.addEventListener('pointerup', onPointerUp);
     window.addEventListener('keydown', onKey);
@@ -9410,7 +9524,9 @@ ORRERY.EarthOrbit = (function () {
     dom.rulerTxt = el('span', 'eo-ruler-txt', ruler);
 
     dom.hint = el('div', 'eo-hint', dom.wrap,
-      'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
+      window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+        ? 'drag to orbit · pinch from the cloud tops to the Moon · ✕ returns to the solar system'
+        : 'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
 
     dom.exit = el('button', 'eo-exit', dom.wrap, '✕ Solar system');
     dom.exit.id = 'eo-exit';
@@ -9627,14 +9743,19 @@ ORRERY.EarthOrbit = (function () {
   }
 
   // --- Wheel handoff (mirror of the cosmos wheel-out) ----------------------------------------------
-  function onWheel(e) {
+  // Shared by the wheel and the pinch (below): deltaY < 0 means "zoom in".
+  // Both demand an active follow on Earth — on narrow phones the full-screen
+  // info panel makes that state unpinchable (the Explore-menu row is the
+  // touch entry there); on tablet-sized touch screens the pinch mirrors the
+  // wheel exactly.
+  function zoomIntent(e, deltaY) {
     if (!ctx) return;
     if (active) {
-      // wheeling out past the mode's max distance → back to the solar system
-      if (e.deltaY > 0) {
+      // zooming out past the mode's max distance → back to the solar system
+      if (deltaY > 0) {
         var d = ctx.camera.position.distanceTo(ctx.controls.target);
         if (d >= MAX_D * 0.985) {
-          oversOut += e.deltaY;
+          oversOut += deltaY;
           if (oversOut > 60) exit();
         } else {
           oversOut = 0;
@@ -9642,17 +9763,44 @@ ORRERY.EarthOrbit = (function () {
       }
       return;                              // OrbitControls owns normal zoom
     }
-    if (e.deltaY >= 0) return;
+    if (deltaY >= 0) return;
     if (ctx.guards && ctx.guards()) return;
     var f = ctx.getFollow ? ctx.getFollow() : null;
     if (!f || f !== ctx.earthEntry) { oversIn = 0; return; }
     var dist = ctx.camera.position.distanceTo(ctx.controls.target);
     if (dist <= ctx.controls.minDistance * 1.05) {
-      oversIn -= e.deltaY;
-      if (oversIn > 40) { e.preventDefault(); enter(); }
+      oversIn -= deltaY;
+      if (oversIn > 40) { if (e.cancelable) e.preventDefault(); enter(); }
     } else {
       oversIn = 0;
     }
+  }
+
+  function onWheel(e) { zoomIntent(e, e.deltaY); }
+
+  // --- Touch handoff (the pinch mirror of the wheel; mobile audit fix) --------------------------
+  // Pinch gap deltas feed the SAME entry/exit thresholds the wheel uses
+  // (fingers opening = wheel-in, deltaY < 0). OrbitControls keeps owning the
+  // actual dolly in both regimes; this only watches for the past-the-stop
+  // intent, exactly like the wheel accumulators.
+  var PINCH_TO_WHEEL = 3;
+  var pinchGap = 0;
+  function gapOf(e) {
+    return Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY);
+  }
+  function onTouchStart(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);
+  }
+  function onTouchMove(e) {
+    if (e.touches.length !== 2) return;
+    var g = gapOf(e);
+    var deltaY = (pinchGap - g) * PINCH_TO_WHEEL;
+    pinchGap = g;
+    zoomIntent(e, deltaY);
+  }
+  function onTouchEnd(e) {
+    if (e.touches.length === 2) pinchGap = gapOf(e);   // 3 → 2 fingers: re-seed
   }
 
   function onKey(e) {
@@ -9667,6 +9815,9 @@ ORRERY.EarthOrbit = (function () {
   function init(options) {
     ctx = options;
     ctx.canvas.addEventListener('wheel', onWheel, { passive: false });
+    ctx.canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    ctx.canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    ctx.canvas.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKey);
     var opt = document.getElementById('opt-earth');
     if (opt) {
@@ -13027,6 +13178,10 @@ ORRERY.Sandbox = (function () {
   function setMode(on) {
     active = on;
     els.hud.classList.toggle('show', on);
+    // Coarse pointers see planet labels as click-through while aiming (CSS
+    // mobile-audit fix): a touch drag that begins on a label button gets
+    // pointer-cancelled by the browser and never reaches the canvas.
+    document.body.classList.toggle('sandboxing', on);
     canvas.style.cursor = on ? 'crosshair' : '';
     if (!on && dragging) endAim();
     if (on) updateHud();
@@ -14980,6 +15135,9 @@ ORRERY.Missions = (function () {
     }
     els.hud.innerHTML = h;
     els.hud.classList.toggle('show', state !== 'closed');
+    // Same coarse-pointer label click-through as the sandbox (CSS mobile-audit
+    // fix): while a burn is being aimed/planned the canvas owns every touch.
+    document.body.classList.toggle('ms-aiming', state === 'aim' || state === 'plan');
     els.flightStatus = document.getElementById('ms-flight');
 
     els.hud.querySelectorAll('[data-i]').forEach(function (btn) {
