@@ -45,7 +45,8 @@
     var group = ORRERY.Bodies3D.buildPlanet(p);
     scene.add(group);
     planets.push(group);
-    orbitLines.add(ORRERY.Bodies3D.buildOrbitLine(p, jd0));
+    // OrbitFlow overlays each orbit line with its Kepler-true stream
+    orbitLines.add(ORRERY.OrbitFlow.attach(ORRERY.Bodies3D.buildOrbitLine(p, jd0), p, jd0));
   });
 
   var comets = [];
@@ -53,7 +54,7 @@
     var group = ORRERY.Comets3D.build(c);
     scene.add(group);
     comets.push(group);
-    orbitLines.add(ORRERY.Comets3D.buildOrbitLine(c, jd0));
+    orbitLines.add(ORRERY.OrbitFlow.attach(ORRERY.Comets3D.buildOrbitLine(c, jd0), c, jd0));
   });
   scene.add(orbitLines);
 
@@ -93,6 +94,7 @@
 
   // --- UI -------------------------------------------------------------------
   ORRERY.CameraPath.init({ camera: camera, controls: controls });
+  ORRERY.TrajAnim.init({ scene: scene });
   ORRERY.TimeBar.init();
   ORRERY.Panel.init(
     function () { follow = null; },
@@ -142,6 +144,20 @@
     },
     onEnter: function () { follow = null; }   // cosmos cancels flights itself
   });
+  // Idle attract mode: slow composed shots once nothing has been touched
+  // for a while; any mode that owns the camera or the screen blocks it.
+  ORRERY.Director.init({
+    registry: registry,
+    camera: camera,
+    controls: controls,
+    setFollow: function (entry) { follow = entry; },
+    clearFocus: function () { follow = null; },
+    guards: function () {
+      return ORRERY.Ride.active || ORRERY.Tour.active || ORRERY.Sandbox.active ||
+        ORRERY.Missions.active || ORRERY.Cosmos.active || ORRERY.Replays.active ||
+        !!document.querySelector('#panel.open, #events.open, #porkchop.open, #marsplan.open');
+    }
+  });
 
   // Planet nav rail
   var rail = document.getElementById('rail');
@@ -156,7 +172,7 @@
   });
 
   // View toggles
-  var opts = { orbits: true, labels: true, trueSize: false, sandbox: false, lagrange: false };
+  var opts = { orbits: true, labels: true, trueSize: false, sandbox: false, lagrange: false, flow: true };
   function bindToggle(id, key, apply) {
     var el = document.getElementById(id);
     el.setAttribute('aria-pressed', String(opts[key]));
@@ -167,6 +183,7 @@
     });
   }
   bindToggle('opt-orbits', 'orbits', function (on) { orbitLines.visible = on; });
+  bindToggle('opt-flow', 'flow', function (on) { ORRERY.OrbitFlow.setEnabled(on); });
   bindToggle('opt-labels', 'labels', function (on) { ORRERY.Labels.setVisible(on); });
   bindToggle('opt-true', 'trueSize', applyScaleMode);
   bindToggle('opt-sandbox', 'sandbox', function (on) { ORRERY.Sandbox.setMode(on); });
@@ -291,6 +308,9 @@
     ORRERY.Sandbox.tick(jdPrev, jd);
     ORRERY.Missions.tick(jd);
     ORRERY.Cosmos.tick(dt, jd);
+    ORRERY.TrajAnim.tick(dt, jd);   // after Sandbox: draw-ins own draw ranges
+    ORRERY.OrbitFlow.tick(jd);
+    ORRERY.Director.tick(dt);
     jdPrev = jd;
 
     // Positions from the physics

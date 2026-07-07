@@ -229,6 +229,15 @@ ORRERY.Replays = (function () {
     return n;
   }
 
+  /** Set the clock WITHOUT the time bar's eased-jump courtesy: replay
+   *  choreography re-integrates synchronously against the new date, which
+   *  must not race a half-flown ease. (The node harness's TimeBar stub is
+   *  a plain object — hence the feature test.) */
+  function snapClock(jd) {
+    var TB = ORRERY.TimeBar;
+    if (TB.snapJd) TB.snapJd(jd); else TB.jd = jd;
+  }
+
   function earthState(jd) {
     var K = ORRERY.Kepler, el = bodyEl('earth');
     var e = K.heliocentric(el, jd);
@@ -352,7 +361,7 @@ ORRERY.Replays = (function () {
     var K = ORRERY.Kepler;
     var burns = opts.burns || def.burns;
     var l = launchState(opts.launch || def.launch);
-    ORRERY.TimeBar.jd = def.launch.jd;
+    snapClock(def.launch.jd);
 
     var vis = null, p;
     if (opts.spawn) {
@@ -486,7 +495,7 @@ ORRERY.Replays = (function () {
 
   function spawnCraft(def) {
     var l = launchState(def.launch);
-    ORRERY.TimeBar.jd = def.launch.jd;
+    snapClock(def.launch.jd);
     vis = ORRERY.Sandbox.addBody(l.pos, l.vel, def.color, 2600);
     burnIdx = 0;
     capDone = false;
@@ -580,7 +589,7 @@ ORRERY.Replays = (function () {
       function (a, b) { ORRERY.Sandbox.tick(a, b); },
       current.launch.jd, target,
       function () { return FRAME; });
-    ORRERY.TimeBar.jd = target;
+    snapClock(target);
     burnIdx = 0;
     while (burnIdx < current.burns.length && current.burns[burnIdx].jd <= target + 1e-9) burnIdx++;
     capDone = res.captured;
@@ -592,6 +601,9 @@ ORRERY.Replays = (function () {
   function frame() {
     if (!active) return;
     raf = requestAnimationFrame(frame);
+    // A clock ease in flight (someone jumped the date mid-replay): the
+    // sandbox is holding physics, so burn/chapter bookkeeping waits too.
+    if (ORRERY.TimeBar.easing) return;
     var NB = ORRERY.NBody;
     var jd = ORRERY.TimeBar.jd;
 
@@ -602,6 +614,7 @@ ORRERY.Replays = (function () {
       var b = current.burns[burnIdx];
       if (jd > b.jd) NB.step(jd, b.jd - jd);
       applyBurn(vis.p, b);
+      ORRERY.Sandbox.flareAt(vis.p.pos, current.color);   // maneuvers glow
       if (jd > b.jd) NB.step(b.jd, jd - b.jd);
       burnIdx++;
     }
@@ -614,6 +627,7 @@ ORRERY.Replays = (function () {
       var cd = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
       if (cd >= capPrevD && capPrevD < 0.3) {
         applyCapture(vis.p, cap, jd);
+        ORRERY.Sandbox.flareAt(vis.p.pos, current.color); // insertion burn
         capDone = true;
       }
       capPrevD = Math.min(capPrevD, cd);

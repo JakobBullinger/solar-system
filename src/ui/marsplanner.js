@@ -32,6 +32,7 @@ ORRERY.MarsPlanner = (function () {
   var selectedKey = null;
   var trajCache = {};              // key → { res, transferLine, loiterLine, marker }
   var shown = [];                  // objects currently added to `group`
+  var trajGlyph = null;            // TrajAnim sprite riding the shown transfer
   var flight = null;               // { m, vis, saved, arrived }
   var raf = 0;
 
@@ -130,6 +131,8 @@ ORRERY.MarsPlanner = (function () {
   }
 
   function clearShown() {
+    if (shown.length) ORRERY.TrajAnim.cancel(shown[0]);   // shown[0] = transferLine
+    if (trajGlyph) { trajGlyph.remove(); trajGlyph = null; }
     shown.forEach(function (o) { group.remove(o); });
     shown = [];
   }
@@ -140,6 +143,13 @@ ORRERY.MarsPlanner = (function () {
     shown = [e.transferLine, e.marker];
     if (e.loiterLine) shown.push(e.loiterLine);
     shown.forEach(function (o) { group.add(o); });
+    // Living orbits: the transfer draws in along its own time of flight,
+    // and a glyph walks the arc wherever the sim clock stands — scrubbing
+    // the time bar flies ESCAPADE (and friends) along the cached points.
+    ORRERY.TrajAnim.play(e.transferLine);
+    trajGlyph = ORRERY.TrajAnim.glyph({
+      points: e.res.points, jd0: m.depJd, color: m.color
+    });
   }
 
   // ---- Timeline ----------------------------------------------------------------

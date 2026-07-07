@@ -157,6 +157,7 @@ ORRERY.Missions = (function () {
   // Mid-course planning: the arc point being dragged from (plan state)
   var planDragging = false;
   var planPick = null;             // { t: days after departure, au: {x,y,z} }
+  var planGlyph = null;            // TrajAnim sprite riding the committed arc
 
   function pickEcliptic(e, out) {
     ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -392,6 +393,13 @@ ORRERY.Missions = (function () {
     attempt.planGood = a.good;
     attempt.planReadout = a.readout;
     placeMidMark();
+    // Living orbits: the committed plan draws in along its time axis, and
+    // a glyph rides the arc under the sim clock while the plan is open.
+    ORRERY.TrajAnim.play(previewLine);
+    if (planGlyph) planGlyph.remove();
+    planGlyph = ORRERY.TrajAnim.glyph({
+      points: run.pv.points, jd0: attempt.departJd, color: '#8ce8dd', scale: 1.8
+    });
   }
 
   function placeMidMark() {
@@ -505,6 +513,8 @@ ORRERY.Missions = (function () {
     planDragging = false;
     planPick = null;
     controls.enabled = true;
+    ORRERY.TrajAnim.cancel(previewLine);
+    if (planGlyph) { planGlyph.remove(); planGlyph = null; }
     previewLine.visible = burnLine.visible = targetMark.visible = midMark.visible = false;
     els.tip.classList.remove('show');
   }
@@ -613,6 +623,9 @@ ORRERY.Missions = (function () {
       refreshPlanDrag(lastEvent);
     }
     if (state !== 'flight') return;
+    // A clock jump is easing: the probe is frozen (sandbox holds physics),
+    // so win/lose checks against moving planets would be meaningless.
+    if (ORRERY.TimeBar.easing) return;
 
     var p = attempt.probe.p;
     var years = (jd - attempt.launchJd) / 365.25;
