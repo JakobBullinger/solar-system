@@ -1456,6 +1456,13 @@ body.touring .porkchop { display: none; }
   width: 28px;
   height: 28px;
   font-size: 14px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
 /* ---- Powers of Ten: cosmic zoom (cosmos.js) ------------------------------- */
 .cz-ui {
   position: fixed;
@@ -1769,7 +1776,6 @@ button.cz-label:hover { color: #fff; }
 body.touring .marsplan { display: none; }
 @media (max-width: 720px) {
   .marsplan { width: 100vw; border-right: none; }
-}
 }
 .cz-card-close:hover { color: var(--text); }
 .cz-card-name {
