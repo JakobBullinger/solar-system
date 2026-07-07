@@ -12,7 +12,7 @@
 'use strict';
 
 const { test, ok, close, between } = require('./lib/harness');
-const { load } = require('./lib/orrery-loader');
+const { load, readSource } = require('./lib/orrery-loader');
 
 const O = load(['data/bodies.js', 'physics/kepler.js', 'physics/nbody.js']);
 const NB = O.NBody;
@@ -83,4 +83,104 @@ test('previewLive: an escaping particle reports no capture', function () {
   const vel = { x: es.vel.x * 1.5, y: es.vel.y * 1.5, z: es.vel.z * 1.5 };
   const pv = NB.previewLive(es.pos, vel, JD, 250, 2, el, 5, null);
   ok(pv.capture === null, 'no bound streak on a hyperbolic cruise');
+});
+
+// ---- Baked champion plans (offline playtest scan, 2026-07-06) ----------------
+// The pars in missions.js were set from these scan minima; each plan was
+// jitter-robust 36/36 across playback rates 10/20/40. Like the Voyager
+// guard, they re-fly here against the real integrator: if an nbody/kepler
+// change breaks these captures, the missions ship unwinnable.
+
+/** Pull an orbiter mission's win criteria out of missions.js source. */
+function missionDef(key) {
+  const src = readSource('ui/missions.js');
+  const m = src.match(new RegExp("key: '" + key + "'[\\s\\S]*?desc:"));
+  ok(m, key + ' mission found in missions.js');
+  const num = function (field) {
+    const f = m[0].match(new RegExp(field + ':\\s*([\\d.]+)'));
+    ok(f, key + '.' + field + ' parsed');
+    return parseFloat(f[1]);
+  };
+  return {
+    rpMax: num('rpMax'), raMax: num('raMax'), holdDays: num('holdDays'),
+    budget: num('budget'), par: num('par'), limitY: num('limitY')
+  };
+}
+
+/** missions.js launchState: Earth's velocity plus the burn, nudged 0.02 AU. */
+function launchState(jd, burn) {
+  const es = bodyState(planetEl('earth'), jd);
+  const vel = { x: es.vel.x + burn.x, y: es.vel.y + burn.y, z: es.vel.z + burn.z };
+  const vl = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+  return {
+    pos: {
+      x: es.pos.x + vel.x / vl * 0.02,
+      y: es.pos.y + vel.y / vl * 0.02,
+      z: es.pos.z + vel.z / vl * 0.02
+    },
+    vel: vel
+  };
+}
+
+/**
+ * Fly a baked two-burn plan the way missions.js does: NB.step in
+ * frame-sized slices with the scheduled burn firing inside the
+ * integrator, tick()'s orbiter win test on top.
+ */
+function flyPlan(def, plan, rate) {
+  const el = planetEl(plan.target);
+  NB.clear();
+  const ls = launchState(plan.jd, plan.burn1);
+  O.TimeBar.jd = plan.jd;
+  const p = NB.addParticle(ls.pos, ls.vel, '#fff');
+  p.burns = [{ jd: plan.jd + plan.t2, dv: plan.burn2, done: false }];
+  const h = rate / 60;
+  let capStart = null, worstRp = 0, worstRa = 0, rp = 0, ra = 0;
+  for (let t = plan.jd; t < plan.jd + def.limitY * 365.25 && p.alive; t += h) {
+    NB.step(t, h);
+    const ro = NB.relPlanet(p.pos, p.vel, el, t + h);
+    if (ro.bound) {
+      if (!capStart) { capStart = t + h; worstRp = 0; worstRa = 0; }
+      if (ro.orb.rp > worstRp) worstRp = ro.orb.rp;
+      if (ro.orb.ra > worstRa) worstRa = ro.orb.ra;
+      rp = ro.orb.rp; ra = ro.orb.ra;
+      if (t + h - capStart >= def.holdDays &&
+          worstRp <= def.rpMax && worstRa <= def.raMax) {
+        NB.remove(p);
+        return { won: true, rp: rp, ra: ra, tWin: t + h - plan.jd };
+      }
+    } else if (capStart) { capStart = null; }
+  }
+  NB.remove(p);
+  return { won: false, alive: p.alive };
+}
+
+const MARS_PLAN = {
+  target: 'mars', jd: 2461350.5,                    // depart 2026-11-06
+  burn1: { x: -0.0011621706971638992, y: 0.0013237535383249838, z: 0 },   // 3.05 km/s
+  t2: 285,
+  burn2: { x: 0.0014026669161482854, y: -0.0004131424111448858, z: -0.00043332389747305263 }  // 2.64 km/s (plane-matched)
+};
+
+const SATURN_PLAN = {
+  target: 'saturn', jd: 2461980,                    // depart 2028-07-27
+  burn1: { x: 0.00579051681482902, y: 0.0019872054445531713, z: 0 },      // 10.6 km/s
+  t2: 2256,
+  burn2: { x: -0.001686635438555159, y: -0.00033804882634282715, z: -0.0006767626840442782 }  // 3.20 km/s (plane-matched)
+};
+
+test('Mars Orbiter: baked 5.69 km/s scan champion still captures at par criteria', function () {
+  const def = missionDef('marsorbit');
+  ok(def.par >= 5.69, 'par (' + def.par + ') at or above the scan minimum 5.69');
+  const res = flyPlan(def, MARS_PLAN, 20);
+  ok(res.won, 'capture + 60 d hold inside rp<' + def.rpMax + ', ra<' + def.raMax);
+  between(res.tWin, 285, 500, 'hold completes within months of insertion');
+});
+
+test('Ringside: baked 13.80 km/s scan champion still captures at par criteria', function () {
+  const def = missionDef('ringside');
+  ok(def.par >= 13.8, 'par (' + def.par + ') at or above the scan minimum 13.80');
+  const res = flyPlan(def, SATURN_PLAN, 40);
+  ok(res.won, 'Saturn capture + 90 d hold inside rp<' + def.rpMax + ', ra<' + def.raMax);
+  between(res.tWin, 2256, 2557, 'insertion at T+2256 d, hold done before the 7 y limit');
 });

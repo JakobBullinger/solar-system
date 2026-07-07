@@ -79,7 +79,7 @@ ORRERY.Missions = (function () {
     {
       key: 'marsorbit', name: 'Mars Orbiter', special: 'orbiter', targetKey: 'mars',
       rpMax: 0.005, raMax: 0.007, holdDays: 60,
-      budget: 8, par: 6.0, limitY: 3, previewSteps: 2200, previewH: 0.5,
+      budget: 8, par: 5.8, limitY: 3, previewSteps: 2200, previewH: 0.5,
       desc: 'Brake into a tight orbit around Mars — periapsis under 0.005 AU, apoapsis ' +
         'inside its Hill sphere — and hold it for 60 days.',
       hint: 'Flying past is easy; staying costs a second burn. Skim Mars, then click the ' +
@@ -91,12 +91,12 @@ ORRERY.Missions = (function () {
     {
       key: 'ringside', name: 'Ringside', special: 'orbiter', targetKey: 'saturn',
       rpMax: 0.04, raMax: 0.3, holdDays: 90,
-      budget: 15, par: 12.5, limitY: 7, epoch: 2461771.5, previewSteps: 1280,
+      budget: 15, par: 14.0, limitY: 7, epoch: 2461953.5, previewSteps: 1280,
       desc: 'Be captured by Saturn: a bound orbit with periapsis inside 0.04 AU (apoapsis ' +
         'inside 0.3), held 90 days.',
       hint: 'Saturn rides up to 0.4 AU off the ecliptic — no in-plane probe gets caught out ' +
-        'there. It crosses the plane in June 2034; the clock starts in 2028 so you can ride ' +
-        'a transfer that arrives on the crossing. Keep 2–3 km/s for the insertion burn at ' +
+        'there. It crosses the plane in June 2034; the clock starts mid-2028 so a ~6-year ' +
+        'cruise can arrive on the crossing. Keep ~3 km/s for the insertion burn at ' +
         'closest approach (it banks a little extra to match Saturn’s plane) — the deeper ' +
         'you dive, the cheaper the catch.'
     }
