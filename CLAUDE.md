@@ -41,6 +41,11 @@ reference; **update its Log table after every landed change**.
   + deadline), never via budgets.
 - In-plane 2D aiming cannot reach Saturn < 0.5 AU (Saturn sits ~0.4 AU out of
   plane at encounter) — keep mission goals z-tolerant.
+- In-plane burns can never CAPTURE at a planet: a target crosses the ecliptic
+  (the only place an in-plane probe can meet it) at its maximum out-of-plane
+  speed — Mars 0.78 km/s of vz, more than escape speed anywhere in its Hill
+  sphere. Orbiter insertion burns therefore plane-match (auto z-component,
+  charged to the budget); see `missions.js dragBurn2`.
 - Never ship or retune a mission par without brute-force playtest verification — see `/playtest-scan`.
 
 ## Verification
