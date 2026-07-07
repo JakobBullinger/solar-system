@@ -50,7 +50,11 @@ reference; **update its Log table after every landed change**.
 
 ## Verification
 
-- No test suite; verification is driving the real app — see `/headless-check`
+- `npm test` — zero-dependency suite in `test/` (Kepler vs ephemerides, integrator
+  invariants, trajectory regression guard, challenge round-trips, mission-capture
+  fixtures; ~1.5 s). Must be green before any merge or `.agent-done`; CI runs it
+  on every push (`.github/workflows/ci.yml`).
+- Beyond tests, verification is driving the real app — see `/headless-check`
   for the headless-Chrome recipe (plain `--disable-gpu` gives a black canvas).
 - Long time-lapses can't use virtual time: drive `ORRERY.Sandbox.tick(jd, jd+n)`
   directly from an injected script.
