@@ -176,6 +176,7 @@ ORRERY.OrbitFlow = (function () {
     attach: attach,
     tick: tick,
     setEnabled: setEnabled,
-    get enabled() { return enabled; }
+    get enabled() { return enabled; },
+    get railsFade() { return railsFade; }   // 1 = massive mode, ellipses hidden
   };
 })();
