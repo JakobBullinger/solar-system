@@ -1408,3 +1408,207 @@ body.touring .porkchop { display: none; }
 @media (max-width: 720px) {
   .porkchop { width: 100vw; border-right: none; }
 }
+
+/* ---- Powers of Ten: cosmic zoom (cosmos.js) ------------------------------- */
+.cz-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  display: none;
+}
+.cz-ui.on { display: block; }
+.cz-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 178px;
+  transform: translateX(-50%);
+  text-align: center;
+  max-width: min(620px, 86vw);
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+.cz-caption h2 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 19px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-shadow: 0 0 18px rgba(4, 6, 12, 0.9);
+}
+.cz-caption p {
+  margin-top: 7px;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-shadow: 0 0 12px rgba(4, 6, 12, 0.9);
+}
+.cz-ruler {
+  position: absolute;
+  left: 50%;
+  bottom: 128px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.cz-ruler-bar {
+  height: 1px;
+  background: rgba(233, 238, 247, 0.55);
+  position: relative;
+}
+.cz-ruler-bar::before, .cz-ruler-bar::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 9px;
+  background: rgba(233, 238, 247, 0.55);
+}
+.cz-ruler-bar::before { left: 0; }
+.cz-ruler-bar::after { right: 0; }
+.cz-ruler-txt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(233, 238, 247, 0.75);
+}
+.cz-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: opacity 0.6s linear;
+}
+.cz-labels {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  display: none;
+  overflow: hidden;
+}
+.cz-labels.on { display: block; }
+.cz-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--display);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(233, 238, 247, 0.85);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.cz-label::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dot, transparent);
+}
+button.cz-label:hover { color: #fff; }
+.cz-label.tag {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  color: rgba(151, 168, 198, 0.75);
+  pointer-events: none;
+}
+.cz-label.tag::before { display: none; }
+.cz-card {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  width: min(320px, 86vw);
+  padding: 30px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: linear-gradient(200deg, rgba(14, 19, 32, 0.94), rgba(6, 9, 16, 0.94));
+  border-left: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  transform: translateX(102%);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow-y: auto;
+}
+.cz-card.show { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cz-card { transition: none; }
+}
+.cz-card-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 30px;
+  height: 30px;
+  font-size: 15px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.cz-card-close:hover { color: var(--text); }
+.cz-card-name {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding-left: 12px;
+  border-left: 3px solid var(--accent, var(--amber));
+}
+.cz-card-type {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cz-card-fact {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(233, 238, 247, 0.9);
+}
+.cz-card-stats, .cz-card-live { display: flex; flex-direction: column; gap: 8px; }
+.cz-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 12.5px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.cz-stat span:first-child { color: var(--muted); letter-spacing: 0.04em; }
+.cz-stat span:last-child { text-align: right; }
+.cz-card-live .cz-stat span:last-child { font-family: var(--mono); color: var(--amber); }
+@media (max-width: 720px) {
+  .cz-card { width: 100vw; border-left: none; }
+  .cz-caption h2 { font-size: 15px; }
+}
+
+/* Deep space wants a bare cockpit: keep the masthead and the clock (the
+   Voyagers ride it), hide everything solar-system-scale. */
+body.cosmos .rail,
+body.cosmos .toggles,
+body.cosmos .tonight-pill,
+body.cosmos .tour-offer,
+body.cosmos .hint,
+body.cosmos .scale-note,
+body.cosmos .events,
+body.cosmos .porkchop,
+body.cosmos .panel { display: none; }

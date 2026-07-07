@@ -16,6 +16,7 @@ const VENDOR = ['vendor/three.min.js', 'vendor/OrbitControls.js'];
 // Dependency order matters: data → physics → scene → ui → main
 const MODULES = [
   'src/data/bodies.js',
+  'src/data/stars.js',
   'src/physics/kepler.js',
   'src/physics/almanac.js',
   'src/physics/nbody.js',
@@ -24,6 +25,7 @@ const MODULES = [
   'src/scene/textures.js',
   'src/scene/shaders.js',
   'src/scene/environment.js',
+  'src/scene/cosmos.js',
   'src/scene/bodies3d.js',
   'src/scene/comets3d.js',
   'src/scene/lagrange3d.js',

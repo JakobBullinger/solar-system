@@ -31,10 +31,14 @@ ORRERY.Environment = (function () {
         }
         var st = Math.sqrt(1 - u * u);
         var x = st * Math.cos(phi), y = u, z = st * Math.sin(phi);
-        if (bandBias) { // tilt the band ~60°
-          var ty = y * 0.5 - z * 0.866;
-          var tz = y * 0.866 + z * 0.5;
-          y = ty; z = tz;
+        if (bandBias) {
+          // Orient the band to the REAL galactic plane: the north galactic
+          // pole sits at scene (-0.868, 0.497, 0) — the same ~60° tilt as
+          // before, but now the cosmos zoom (cosmos.js) can resolve this
+          // band into a galaxy whose plane actually matches it.
+          var tx = x * 0.4970 - y * 0.8677;
+          var ty = x * 0.8677 + y * 0.4970;
+          x = tx; y = ty;
         }
         var o = i * 3;
         pos[o] = x * R; pos[o + 1] = y * R; pos[o + 2] = z * R;
@@ -60,8 +64,12 @@ ORRERY.Environment = (function () {
       return new THREE.Points(geo, mat);
     }
 
-    group.add(makeStars(6500, 1.2, 1.6, false));
-    group.add(makeStars(4500, 0.9, 1.1, true));
+    var main = makeStars(6500, 1.2, 1.6, false);
+    var band = makeStars(4500, 0.9, 1.1, true);
+    group.add(main, band);
+    // Tagged so the cosmic zoom can cross-fade the band into the galaxy
+    group.userData.mainStars = main;
+    group.userData.bandStars = band;
     return group;
   }
 
