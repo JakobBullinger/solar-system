@@ -25,6 +25,12 @@
  * - Quality toggle: setEnabled(false) hides the overlays and skips all
  *   per-frame work (13 elementsAt calls otherwise — cheap, but the extra
  *   translucent overdraw is what a weak GPU wants gone).
+ * - Massive mode (level 20): a promoted planet's static ellipse is a lie,
+ *   so entries attached with `railsFadable` fade their BASE line out while
+ *   NBody.promoted — the overlay follows automatically because it already
+ *   mirrors the base opacity. The fade never writes while Cosmos owns the
+ *   materials, and writes stop entirely once fully restored, so the rails
+ *   render path is untouched when massive mode was never entered.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -76,7 +82,7 @@ ORRERY.OrbitFlow = (function () {
    * attribute and the shader are its own. Returns the base line so the
    * call can wrap the existing add() sites.
    */
-  function attach(line, body, jd) {
+  function attach(line, body, jd, railsFadable) {
     var o = ORRERY.Kepler.elementsAt(body.el, jd);
     var pos = line.geometry.attributes.position;
     var n = pos.count;
@@ -119,16 +125,37 @@ ORRERY.OrbitFlow = (function () {
 
     entries.push({
       el: body.el,
+      line: line,
       overlay: overlay,
       mat: mat,
       baseMat: line.material,
-      base0: line.material.opacity || 1
+      base0: line.material.opacity || 1,
+      fadable: !!railsFadable
     });
     return line;
   }
 
+  // Massive-mode fade state: 0 = rails truth, 1 = ellipses hidden.
+  var railsFade = 0;
+
+  /** Ease the fadable base lines toward (1 - railsFade)·base0. */
+  function tickRailsFade() {
+    var target = ORRERY.NBody && ORRERY.NBody.promoted ? 1 : 0;
+    if (railsFade === target) return;
+    if (ORRERY.Cosmos && ORRERY.Cosmos.active) return; // cosmos owns opacity up there; resume after
+    railsFade += (target - railsFade) * 0.06;
+    if (Math.abs(railsFade - target) < 0.004) railsFade = target;
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      if (!e.fadable) continue;
+      e.baseMat.opacity = e.base0 * (1 - railsFade);
+      e.line.visible = railsFade < 0.999;
+    }
+  }
+
   /** Per-frame: advance phases with the sim clock, mirror cosmos fades. */
   function tick(jd) {
+    tickRailsFade();
     if (!enabled) return;
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
@@ -149,6 +176,7 @@ ORRERY.OrbitFlow = (function () {
     attach: attach,
     tick: tick,
     setEnabled: setEnabled,
-    get enabled() { return enabled; }
+    get enabled() { return enabled; },
+    get railsFade() { return railsFade; }   // 1 = massive mode, ellipses hidden
   };
 })();

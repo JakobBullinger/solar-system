@@ -8,6 +8,16 @@
  * the body to the n-body integrator. While aiming, a preview arc shows the
  * trajectory with planets frozen: teal means gravitationally bound, red
  * means the Sun never gets it back.
+ *
+ * Level 20, The What-If Machine: the launcher gained a mass selector. A
+ * body with real mass promotes the whole solar system to integrated
+ * bodies (nbody.js massive mode) — planets grow truth-telling trails, the
+ * now-lying orbit ellipses fade (orbitflow.js), decorative belts hide, and
+ * a banner offers the one honest way back: "Restore the real solar
+ * system" (an explicit snap back to the Kepler rails). The what-if
+ * scenario buttons drop in verified set-pieces: a second Jupiter, a
+ * companion star, a rogue-star flyby, and a kinetic-impactor asteroid
+ * deflection with a live predicted-miss readout.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -28,6 +38,22 @@ ORRERY.Sandbox = (function () {
   var visuals = [];                // { p, sprite, line, pos[], count }
   var paletteIdx = 0;
   var els = {};
+
+  // --- Massive bodies (level 20) ----------------------------------------------
+  // Launch-mass classes: ratio = body mass / M_sun; radius (AU) is physical
+  // (merges fire on swept contact, so it matters); scale sizes the sprite.
+  var MASS_CLASSES = {
+    probe: null,
+    moon: { ratio: 3.694e-8, radius: 1.16e-5, scale: 3.4, label: 'a Moon-mass body', color: '#cfd8e6' },
+    earth: { ratio: 3.0035e-6, radius: 4.26e-5, scale: 4.4, label: 'an Earth-mass body', color: '#7fc4ff' },
+    jupiter: { ratio: 9.5479e-4, radius: 4.78e-4, scale: 6.5, label: 'a Jupiter-mass body', color: '#ffd27f' },
+    bd: { ratio: 0.05, radius: 4.8e-4, scale: 8.5, label: 'a brown dwarf', color: '#ff9a66' },
+    rd: { ratio: 0.2, radius: 9.3e-4, scale: 11, label: 'a red dwarf', color: '#ff7050' }
+  };
+  var massKey = 'probe';           // launcher's selected class
+  var massOverride = null;         // scenario-forced launch spec (DART impactor)
+  var scenario = null;             // active what-if scenario, or null
+  var helioTmp = { x: 0, y: 0, z: 0 };
 
   // --- Coordinate mapping ----------------------------------------------------
   // Scene <-> AU: invert the power-law distance compression of kepler.js.
@@ -124,17 +150,40 @@ ORRERY.Sandbox = (function () {
   var glowTex = null;
 
   function spawn(posAU, velAU, colorHex, trailLen) {
-    if (NB.particles.length >= MAX_BODIES) removeVisual(visuals[0]);
+    if (NB.particles.length >= MAX_BODIES) {
+      // Evict the oldest massless probe; massive bodies are never evicted
+      for (var e = 0; e < visuals.length; e++) {
+        if (!visuals[e].p.massive) { removeVisual(visuals[e]); break; }
+      }
+    }
     var color = colorHex || PALETTE[paletteIdx++ % PALETTE.length];
-    var trail = trailLen || TRAIL;
     var p = NB.addParticle(posAU, velAU, color);
+    return makeVisual(p, color, trailLen || TRAIL, 2.6);
+  }
 
+  /**
+   * Launch a body with real mass: the moment one exists, the whole solar
+   * system is promoted to integrated bodies (nbody.js massive mode).
+   */
+  function spawnMassive(posAU, velAU, spec) {
+    var color = spec.color || PALETTE[paletteIdx++ % PALETTE.length];
+    var b = NB.addMassive(posAU, velAU, {
+      mu: spec.mu !== undefined ? spec.mu : NB.MU * spec.ratio,
+      radius: spec.radius,
+      label: spec.label,
+      color: color,
+      jd: spec.jd
+    });
+    return makeVisual(b, color, spec.trail || TRAIL, spec.scale || 4.4);
+  }
+
+  function makeVisual(p, color, trail, spriteScale) {
     if (!glowTex) glowTex = ORRERY.Textures.glowSprite('rgba(255,255,255,0.95)', 'rgba(255,255,255,0.12)');
     var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTex, color: new THREE.Color(color),
       blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
     }));
-    sprite.scale.setScalar(2.6);
+    sprite.scale.setScalar(spriteScale);
 
     var geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(trail * 3), 3));
@@ -155,6 +204,7 @@ ORRERY.Sandbox = (function () {
     group.add(sprite, line);
     var vis = {
       p: p, sprite: sprite, line: line, count: 0, trail: trail,
+      baseScale: spriteScale,                    // ride-along restores to this
       color: c,                                  // base for the age-fade
       jds: new Float64Array(trail),              // sim time each point was laid
       burnsSeen: 0                               // fired-burn count → flare
@@ -234,7 +284,9 @@ ORRERY.Sandbox = (function () {
   /** Advance physics across the frame's time slice and refresh visuals. */
   function tick(jd0, jd1) {
     updateFlares();
-    if (!visuals.length) { easePendJd = null; return; }
+    // Massive mode must keep integrating even with zero probes on screen
+    // (the planets themselves are the simulation); rails keeps its early-out.
+    if (!visuals.length && !NB.promoted && !ptrails.length) { easePendJd = null; return; }
 
     // While the time bar eases a clock jump, hold the physics and treat
     // the whole jump as the single step it used to be — so the n-body
@@ -248,10 +300,11 @@ ORRERY.Sandbox = (function () {
     NB.step(jd0, jd1 - jd0);
 
     var moved = jd1 !== jd0;
+    tickRegime(jd1, moved);
     for (var i = visuals.length - 1; i >= 0; i--) {
       var vis = visuals[i];
       if (!vis.p.alive) { removeVisual(vis); updateHud(); continue; }
-      K.toScene(vis.p.pos, headScene);
+      K.toScene(NB.helioOf(vis.p, helioTmp), headScene);
       vis.sprite.position.copy(headScene);
 
       if (vis.p.burns) {
@@ -280,6 +333,118 @@ ORRERY.Sandbox = (function () {
         fadeTrail(vis, jd1);
       }
     }
+  }
+
+  // --- Massive-mode housekeeping (level 20) --------------------------------------
+  var ptrails = [];                // truth-telling trails for promoted planets
+  var wasPromoted = false;
+  var regimeFrame = 0;
+
+  function tickRegime(jd1, moved) {
+    var on = NB.promoted;
+    if (on !== wasPromoted) {
+      wasPromoted = on;
+      if (els.massive) els.massive.classList.toggle('show', on);
+      if (!on && els.miss) { els.miss.textContent = ''; els.events.textContent = ''; }
+      updateHud();
+    }
+    if (!on && !ptrails.length) return;
+
+    // Honest throttle: when the substep budget saturated (deep encounter),
+    // slow the clock instead of letting the physics silently degrade.
+    if (on && NB.throttled && Math.abs(ORRERY.TimeBar.rate) > 2) {
+      ORRERY.TimeBar.rate *= 0.7;
+      els.note.textContent = 'Time slowed — a close encounter needs fine physics steps.';
+    }
+
+    updatePlanetTrails(jd1, moved);
+    if (++regimeFrame % 20 === 0 && on) {
+      els.events.textContent = NB.events.slice(-2).join(' · ');
+      if (scenario && scenario.key === 'dart') updateMissReadout();
+    }
+  }
+
+  function updatePlanetTrails(jd1, moved) {
+    if (NB.promoted && !ptrails.length) {
+      ORRERY.DATA.PLANETS.forEach(function (pd) {
+        if (!NB.planetHelioAU(pd.key, helioTmp)) return;
+        var trail = 420;
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(trail * 3), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(trail * 3), 3));
+        geo.setDrawRange(0, 0);
+        var line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+          vertexColors: true, transparent: true, opacity: 0.85,
+          blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        line.frustumCulled = false;
+        group.add(line);
+        ptrails.push({
+          key: pd.key, line: line, count: 0, trail: trail,
+          color: new THREE.Color(pd.color), jds: new Float64Array(trail)
+        });
+      });
+    } else if (!NB.promoted && ptrails.length) {
+      ptrails.forEach(function (t) { group.remove(t.line); t.line.geometry.dispose(); });
+      ptrails.length = 0;
+      return;
+    }
+    if (!moved) return;
+    for (var i = 0; i < ptrails.length; i++) {
+      var t = ptrails[i];
+      var h = NB.planetHelioAU(t.key, helioTmp);
+      if (!h || h.alive === false) continue;   // a dead planet's trail freezes
+      K.toScene(h, headScene);
+      var pos = t.line.geometry.attributes.position;
+      var arr = pos.array;
+      var last = Math.min(t.count, t.trail - 1);
+      for (var j = last; j > 0; j--) {
+        arr[j * 3] = arr[(j - 1) * 3];
+        arr[j * 3 + 1] = arr[(j - 1) * 3 + 1];
+        arr[j * 3 + 2] = arr[(j - 1) * 3 + 2];
+        t.jds[j] = t.jds[j - 1];
+      }
+      arr[0] = headScene.x; arr[1] = headScene.y; arr[2] = headScene.z;
+      t.jds[0] = jd1;
+      t.count = Math.min(t.count + 1, t.trail);
+      t.line.geometry.setDrawRange(0, t.count);
+      pos.needsUpdate = true;
+      fadeTrail(t, jd1);
+    }
+  }
+
+  /** The explicit way back: massive bodies vanish, planets snap to rails. */
+  function restoreReal() {
+    for (var i = visuals.length - 1; i >= 0; i--) {
+      if (visuals[i].p.massive) removeVisual(visuals[i]);
+    }
+    NB.restore();
+    scenario = null;
+    massOverride = null;
+    if (els.miss) { els.miss.textContent = ''; els.events.textContent = ''; }
+    els.note.textContent = 'The real solar system is restored — every planet is back on its rail.';
+    updateHud();
+  }
+
+  /** Kinetic-impactor readout: forward-predict the asteroid vs Earth. */
+  function updateMissReadout() {
+    var ast = scenario.asteroid;
+    if (!ast || !ast.alive) {
+      els.miss.classList.toggle('danger', !!(ast && ast.status === 'merged'));
+      els.miss.textContent = ast && ast.mergedInto && ast.mergedInto.key === 'earth'
+        ? 'The asteroid hit Earth.'
+        : 'The asteroid is gone.';
+      return;
+    }
+    var horizon = Math.max(60, scenario.encJd - ORRERY.TimeBar.jd + 90);
+    var p = NB.predictApproach(ast, 'earth', horizon);
+    if (!p) return;
+    var km = Math.round(p.d * 1.495978707e8);
+    var hit = p.impact || km < 15000;
+    els.miss.classList.toggle('danger', hit);
+    els.miss.textContent = hit
+      ? 'Predicted: EARTH IMPACT' + (km ? ' (' + km.toLocaleString() + ' km)' : '')
+      : 'Predicted Earth miss: ' + km.toLocaleString() + ' km';
   }
 
   // --- Presets -------------------------------------------------------------------
@@ -379,6 +544,114 @@ ORRERY.Sandbox = (function () {
     }
   };
 
+  // --- What-if scenarios (level 20) -----------------------------------------------
+  // Set-pieces for the promoted regime. Every number a caption cites was
+  // verified offline against this exact integrator (scan results quoted in
+  // the level-20 PR); the constants live here in WHATIF so the scans, the
+  // tests and the app share one source of truth.
+  var WHATIF = {
+    // A Jupiter-mass planet on a circular orbit inside the asteroid belt
+    jupiter2: { r: 2.55, ang: 1.0, rate: 60 },
+    // 0.2 M☉ red dwarf on a circular orbit just outside Neptune
+    companion: { r: 50, rate: 365.25 },
+    // 1 M☉ intruder on a hyperbolic pass: v∞ and perihelion set the damage
+    rogue: { r0: 55, q: 20, vinfKms: 3, rate: 365.25 },
+    // Kinetic-impactor drill: asteroid state baked by offline Lambert seed +
+    // Newton shooting against THIS integrator (rebake pattern) — it strikes
+    // Earth 270 d after the epoch to within 14 km if nobody intervenes.
+    dart: {
+      epoch: 2461000.5, encJd: 2461270.5,
+      pos: { x: -0.595896, y: -1.961481, z: 0.02 },
+      vel: { x: 0.005765676523994166, y: -0.004655531689179438, z: 0.000005092324538846653 },
+      astRatio: 2e-20, astRadius: 5e-5,       // ~4e10 kg rock; radius = terminal-guidance capture
+      impRatio: 4e-24, impRadius: 1e-5,       // your impactor: ~1/5000 of the asteroid
+      rate: 4
+    }
+  };
+
+  /** Exact hyperbolic entry state for the rogue star (energy + L matched). */
+  function rogueState() {
+    var W = WHATIF.rogue;
+    var NBg = ORRERY.NBody;
+    var mu2 = NBg.MU * 2;                     // Sun + intruder, both ~1 M☉
+    var vinf = W.vinfKms / NBg.KMS_PER_AUDAY;
+    var vq = Math.sqrt(vinf * vinf + 2 * mu2 / W.q);
+    var v0 = Math.sqrt(vinf * vinf + 2 * mu2 / W.r0);
+    var b = W.q * vq / v0;                    // offset giving L = q·vq at launch speed
+    return {
+      pos: { x: Math.sqrt(Math.max(W.r0 * W.r0 - b * b, 1)), y: b, z: 0 },
+      vel: { x: -v0, y: 0, z: 0 }
+    };
+  }
+
+  function runScenario(key) {
+    clearAll();
+    scenario = { key: key };
+    var jd = ORRERY.TimeBar.jd;
+    var W = WHATIF[key];
+
+    if (key === 'jupiter2') {
+      var vc = Math.sqrt(NB.MU / W.r);
+      spawnMassive(
+        { x: Math.cos(W.ang) * W.r, y: Math.sin(W.ang) * W.r, z: 0 },
+        { x: -Math.sin(W.ang) * vc, y: Math.cos(W.ang) * vc, z: 0 },
+        specFor('jupiter', 'the second Jupiter'));
+      PRESETS.belt(jd);                        // twelve test bodies to stir
+      els.note.textContent = 'A second Jupiter now orbits at 2.55 AU, inside the asteroid ' +
+        'belt. Verified run: it eats three of the twelve belt bodies within 25 years, and ' +
+        'Mars drifts a quarter AU off its real ephemeris within 50 years — almost a full AU ' +
+        'in two centuries. (The decorative belt is hidden: massive mode shows only bodies ' +
+        'that really integrate.)';
+    } else if (key === 'companion') {
+      var v = Math.sqrt(NB.MU * 1.2 / W.r);    // two-body circular, relative
+      spawnMassive({ x: W.r, y: 0, z: 0 }, { x: 0, y: v, z: 0 },
+        specFor('rd', 'the companion star'));
+      els.note.textContent = 'A 0.2 M☉ red dwarf now circles at 50 AU. Verified run: within ' +
+        '25 years Neptune\'s orbit is visibly eccentric (e ≈ 0.4); within a century it is torn ' +
+        'down to a ≈ 17 AU at e ≈ 0.8, crossing the other giants, and Pluto is flung onto a ' +
+        'centuries-long ellipse hundreds of AU deep. The same star parked at 300 AU would be ' +
+        'invisible in a lifetime — over a millennium the giants barely feel it.';
+    } else if (key === 'rogue') {
+      var st = rogueState();
+      spawnMassive(st.pos, st.vel, {
+        mu: NB.MU, radius: 4.65e-3, scale: 13, label: 'the rogue star',
+        color: '#fff2c9', trail: 480
+      });
+      els.note.textContent = 'A sun-mass star is falling in from 55 AU, aimed to pass ' +
+        '20 AU out — the plunge takes about 25 years. Verified run: Neptune is thrown out ' +
+        'of the solar system, Uranus is left on a wildly eccentric orbit (e ≈ 0.9), Saturn\'s ' +
+        'eccentricity jumps eightfold, Pluto is scattered — and the rocky planets barely notice.';
+    } else if (key === 'dart') {
+      ORRERY.TimeBar.jd = W.epoch;             // eases; physics holds meanwhile
+      var vis = spawnMassive(W.pos, W.vel, {
+        mu: NB.MU * W.astRatio, radius: W.astRadius, scale: 3.2,
+        label: 'the asteroid', color: '#d8c9a3', trail: 480, jd: W.epoch
+      });
+      scenario.asteroid = vis.p;
+      scenario.encJd = W.encJd;
+      massOverride = {
+        mu: NB.MU * W.impRatio, radius: W.impRadius, scale: 2.6,
+        label: 'your impactor', color: '#9be8ff'
+      };
+      els.note.textContent = 'An asteroid is nine months from hitting Earth — the readout ' +
+        'above shows the predicted miss. Drag to launch a kinetic impactor into it (while ' +
+        'the drill is armed, every launch is an impactor). Verified: striking it 80 days out ' +
+        'deflects it ~17,000 km — a graze; 150 days → ~30,000 km; 220 days → ~68,000 km. ' +
+        'Under two months of lead time, the impact still lands.';
+    }
+    ORRERY.TimeBar.rate = W.rate;
+    ORRERY.TimeBar.playing = true;
+    updateHud();
+  }
+
+  function specFor(clsKey, label) {
+    var c = MASS_CLASSES[clsKey];
+    return {
+      ratio: c.ratio, radius: c.radius, scale: c.scale,
+      color: c.color, label: label || c.label
+    };
+  }
+
   /** Chase-cam the most recently launched body. */
   function rideNewest() {
     var vis = visuals[visuals.length - 1];
@@ -389,13 +662,18 @@ ORRERY.Sandbox = (function () {
       getPos: function () { return vis.sprite.position; },
       isAlive: function () { return vis.p.alive && visuals.indexOf(vis) !== -1; },
       onStart: function () { vis.sprite.scale.setScalar(0.9); },
-      onStop: function () { vis.sprite.scale.setScalar(2.6); }
+      onStop: function () { vis.sprite.scale.setScalar(vis.baseScale); }
     });
   }
 
   function clearAll() {
     while (visuals.length) removeVisual(visuals[0]);
-    NB.clear();
+    NB.clear();                       // demotes too: clearing IS the restore
+    scenario = null;
+    massOverride = null;
+    if (els.miss) { els.miss.textContent = ''; els.events.textContent = ''; }
+    if (els.massive) els.massive.classList.remove('show');
+    wasPromoted = false;
     if (els.note) els.note.textContent = '';
     updateHud();
   }
@@ -403,9 +681,12 @@ ORRERY.Sandbox = (function () {
   // --- HUD ---------------------------------------------------------------------
   function updateHud() {
     var n = NB.particles.filter(function (p) { return p.alive; }).length;
-    var bits = [n + (n === 1 ? ' body' : ' bodies')];
+    var bits = [NB.massive.length
+      ? n + (n === 1 ? ' probe' : ' probes') + ' · ' + NB.massive.length + ' massive'
+      : n + (n === 1 ? ' body' : ' bodies')];
     if (NB.lost.sun) bits.push(NB.lost.sun + ' swallowed by the Sun');
     if (NB.lost.escaped) bits.push(NB.lost.escaped + ' escaped');
+    if (NB.lost.impact) bits.push(NB.lost.impact + ' hit a body');
     els.count.textContent = bits.join(' · ');
   }
 
@@ -424,13 +705,27 @@ ORRERY.Sandbox = (function () {
     els.count = document.getElementById('sb-count');
     els.speed = document.getElementById('sb-speed');
     els.note = document.getElementById('sb-note');
+    els.massive = document.getElementById('sb-massive');
+    els.events = document.getElementById('sb-events');
+    els.miss = document.getElementById('sb-miss');
     document.getElementById('sb-clear').addEventListener('click', clearAll);
     document.getElementById('sb-ride').addEventListener('click', rideNewest);
+    document.getElementById('sb-restore').addEventListener('click', restoreReal);
     els.hud.querySelectorAll('[data-preset]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         els.note.textContent = '';
         PRESETS[btn.dataset.preset](ORRERY.TimeBar.jd);
       });
+    });
+    var massBtns = els.hud.querySelectorAll('[data-mass]');
+    massBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        massKey = btn.dataset.mass;
+        massBtns.forEach(function (b) { b.classList.toggle('on', b === btn); });
+      });
+    });
+    els.hud.querySelectorAll('[data-scenario]').forEach(function (btn) {
+      btn.addEventListener('click', function () { runScenario(btn.dataset.scenario); });
     });
 
     canvas.addEventListener('pointerdown', function (e) {
@@ -449,7 +744,11 @@ ORRERY.Sandbox = (function () {
       if (!dragging) return;
       var px = Math.hypot(e.clientX - startPx.x, e.clientY - startPx.y);
       if (px > 6 && pickEcliptic(e, hitScene)) {
-        spawn(startAU, dragVelocity(e).vel);
+        // A scenario override (DART impactor) or a selected mass class turns
+        // the launch into a massive body; the default probe stays massless.
+        var spec = massOverride || MASS_CLASSES[massKey];
+        if (spec) spawnMassive(startAU, dragVelocity(e).vel, spec);
+        else spawn(startAU, dragVelocity(e).vel);
       }
       endAim();
     });
@@ -463,15 +762,19 @@ ORRERY.Sandbox = (function () {
     if (on) updateHud();
   }
 
-  /** Alive bodies as plain data (capped) — the permalink's payload. */
+  /** Alive bodies as plain data (capped) — the permalink's payload.
+   *  Serialized heliocentric, so a link cut in massive mode still replays
+   *  its probes sanely in a rails world (masses themselves don't travel). */
   function serialize() {
     return NB.particles
       .filter(function (p) { return p.alive; })
       .slice(0, 24)
       .map(function (p) {
+        var hp = NB.helioOf(p, {});
+        var hv = NB.helioVelOf(p, {});
         return {
-          pos: [p.pos.x, p.pos.y, p.pos.z],
-          vel: [p.vel.x, p.vel.y, p.vel.z],
+          pos: [hp.x, hp.y, hp.z],
+          vel: [hv.x, hv.y, hv.z],
           color: p.color
         };
       });
@@ -487,6 +790,15 @@ ORRERY.Sandbox = (function () {
     removeBody: function (vis) { if (visuals.indexOf(vis) !== -1) { removeVisual(vis); updateHud(); } },
     flareAt: flareAt,
     serialize: serialize,
-    get active() { return active; }
+    runScenario: runScenario,
+    restoreReal: restoreReal,
+    get active() { return active; },
+    // Offline scans and tests drive the exact scenario constants (level 20)
+    _dev: {
+      MASS_CLASSES: MASS_CLASSES,
+      WHATIF: WHATIF,
+      rogueState: rogueState,
+      get scenario() { return scenario; }
+    }
   };
 })();

@@ -45,8 +45,9 @@
     var group = ORRERY.Bodies3D.buildPlanet(p);
     scene.add(group);
     planets.push(group);
-    // OrbitFlow overlays each orbit line with its Kepler-true stream
-    orbitLines.add(ORRERY.OrbitFlow.attach(ORRERY.Bodies3D.buildOrbitLine(p, jd0), p, jd0));
+    // OrbitFlow overlays each orbit line with its Kepler-true stream;
+    // `true` = fade this ellipse out in massive mode (it lies off-rails)
+    orbitLines.add(ORRERY.OrbitFlow.attach(ORRERY.Bodies3D.buildOrbitLine(p, jd0), p, jd0, true));
   });
 
   var comets = [];
@@ -302,6 +303,7 @@
   // --- Render loop -------------------------------------------------------------
   var clock = new THREE.Clock();
   var tmp = new THREE.Vector3();
+  var pvTmp = { x: 0, y: 0, z: 0, alive: true };
   var jdPrev = ORRERY.TimeBar.jd;
 
   function animate() {
@@ -320,10 +322,19 @@
     ORRERY.Director.tick(dt);
     jdPrev = jd;
 
-    // Positions from the physics
+    // Positions from the physics. In massive mode (level 20) a promoted
+    // planet renders from the integrator, not its Kepler rail — and a
+    // planet the regime killed (swallowed, ejected) honestly disappears.
     planets.forEach(function (group) {
       var b = group.userData.body;
-      K.scenePosition(b.el, jd, group.position);
+      var pv = ORRERY.NBody.planetHelioAU(b.key, pvTmp);
+      if (pv) {
+        K.toScene(pv, group.position);
+        group.visible = pv.alive !== false;
+      } else {
+        K.scenePosition(b.el, jd, group.position);
+        if (!group.visible) group.visible = true;
+      }
 
       // Axial spin (rotationHours sign encodes retrograde)
       var spins = (daysSinceEpoch * 24 / b.rotationHours) % 1;
@@ -359,6 +370,9 @@
     ORRERY.VizPanel.tick(jd);
 
     sun.userData.mesh.rotation.y = (daysSinceEpoch * 24 / DATA.SUN.rotationHours) * Math.PI * 2;
+    // Belts are decorative point clouds that do not integrate — massive
+    // mode hides them honestly (the sandbox caption says so).
+    asteroids.visible = kuiper.visible = !ORRERY.NBody.promoted;
     asteroids.rotation.y += asteroids.userData.spinRate * dt;
     kuiper.rotation.y += kuiper.userData.spinRate * dt;
 

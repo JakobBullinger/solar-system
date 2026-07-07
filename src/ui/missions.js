@@ -832,6 +832,17 @@ ORRERY.Missions = (function () {
   }
 
   function act(a) {
+    // Level 20 guard: missions are tuned against the rails solar system —
+    // refuse to fly while massive mode has the planets off their rails.
+    if (a === 'aim' && ORRERY.NBody.promoted) {
+      els.tip.innerHTML = '<strong>Massive mode is on</strong> — restore the real solar ' +
+        'system (Sandbox → Restore) before flying a mission.';
+      els.tip.classList.remove('good');
+      els.tip.style.transform = 'translate(' + Math.round(window.innerWidth / 2 - 150) + 'px, 92px)';
+      els.tip.classList.add('show');
+      setTimeout(function () { els.tip.classList.remove('show'); }, 3600);
+      return;
+    }
     if (a === 'aim') {
       if (ORRERY.Sandbox.active) document.getElementById('opt-sandbox').click();
       clearAim();
