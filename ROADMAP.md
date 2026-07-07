@@ -5,18 +5,12 @@ how we work is in ORCHESTRATION.md. Keep this file updated when plans change —
 it is the only place forward plans live *in the repo* (session memory mirrors
 it but is machine-local).
 
-## In flight (launched 2026-07-07, background-subagent lanes)
+## In flight
 
-- **CI e2e gate** (`../solar-system-ci`, `feature/ci-e2e`): the full
-  Playwright suite as a CI job on PRs, with a proven-red teeth check.
-  Merges FIRST (small; then the Level 24 PR gets the new gate).
-- **Level 24 — Earth Orbit & Starlink** (`../solar-system-earth`,
-  `feature/earth-orbit`, port 4175): DONE, PR open — Earth-centered
-  km/minutes regime + structural Starlink (real Gen1 shells, synthetic
-  Walker catalog, no TLEs/zero network) + ISS/GEO/Moon anchors. The
-  rocket-ascent ride-along stretch was deliberately not attempted — moved
-  to the backlog. Level 21 Mission Control remains gated on human playtest
-  feedback about mission pars/difficulty.
+(nothing — wave 5 landed 2026-07-07: the CI e2e gate (PR #9, which caught
+and held a real flake on its first day) and Level 24 Earth Orbit & Starlink
+(PR #10). Level 21 Mission Control remains gated on human playtest feedback
+about mission pars/difficulty.)
 
 ## Next, in order
 
@@ -51,8 +45,11 @@ it but is machine-local).
   bands, ocean glint, aurorae) — the "cinematic" list, additive polish.
 - Comet rendezvous + Venus-assist-to-Mercury missions (better with burns +
   insertion now in the game).
-- CI: run the Playwright e2e suite on PRs (needs Chrome or `playwright
-  install` on the runner) — today CI runs build + unit tests + smoke only.
+- CI dedupe: PR branches trigger both `push` and `pull_request` runs (double
+  ~3.5 min e2e jobs per PR) — restrict the push trigger to main.
+- Fleet dashboard: teach tools/fleet.js to read background-subagent
+  transcripts (today the session-telemetry columns only see per-worktree
+  terminal sessions; status lines and PR states work either way).
 - Wildcards: light-time delay rendering; low-thrust ion propulsion missions.
 
 ## Deliberately deferred
