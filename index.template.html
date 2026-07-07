@@ -17,20 +17,41 @@
   <p>A live orrery — planet positions computed from real orbital mechanics.</p>
 </header>
 
-<nav class="toggles" aria-label="View options">
-  <button class="toggle toggle-tour" id="opt-tour">✦ Tour</button>
-  <button class="toggle toggle-replays" id="opt-replays">Replays</button>
-  <button class="toggle toggle-missions" id="opt-missions">Missions</button>
-  <button class="toggle" id="opt-sandbox">Sandbox</button>
-  <button class="toggle" id="opt-events">Events</button>
-  <button class="toggle" id="opt-porkchop">Windows</button>
-  <button class="toggle" id="opt-mars">Mars</button>
-  <button class="toggle" id="opt-viz">Physics</button>
-  <button class="toggle" id="opt-orbits">Orbits</button>
-  <button class="toggle" id="opt-flow">Flow</button>
-  <button class="toggle" id="opt-lagrange">L-points</button>
-  <button class="toggle" id="opt-labels">Labels</button>
-  <button class="toggle" id="opt-true">True size</button>
+<!-- Header: two controls. Every former toggle keeps its element ID — the
+     feature modules bind to the IDs at init; the buttons simply live inside
+     menus now (ui/header.js owns open/close; it never touches the features). -->
+<nav class="hdr" id="hdr" aria-label="Explore and view controls">
+  <div class="hdr-unit">
+    <button class="hdr-btn" id="hdr-explore" aria-haspopup="true" aria-expanded="false">
+      <span class="hdr-ico">✦</span><span class="hdr-text" id="hdr-explore-text">Explore</span><span class="hdr-caret">▾</span>
+    </button>
+    <div class="hdr-menu hdr-menu-explore" id="hdr-menu-explore" aria-hidden="true" aria-label="Experiences">
+      <button class="mi mi-tour" id="opt-tour"><span class="mi-ico">✦</span><span class="mi-body"><strong>Tour</strong><em>The 2-minute guided flight</em></span></button>
+      <button class="mi mi-replays" id="opt-replays"><span class="mi-ico">↻</span><span class="mi-body"><strong>Replays</strong><em>Real missions, re-flown in live gravity</em></span></button>
+      <button class="mi mi-missions" id="opt-missions"><span class="mi-ico">◇</span><span class="mi-body"><strong>Missions</strong><em>Design and fly Δv-budget missions</em></span></button>
+      <button class="mi" id="opt-sandbox"><span class="mi-ico">✷</span><span class="mi-body"><strong>Sandbox</strong><em>Launch bodies into real solar gravity</em></span></button>
+      <button class="mi" id="opt-mars"><span class="mi-ico">♂</span><span class="mi-body"><strong>Mars</strong><em>The real 2026–31 manifest</em></span></button>
+      <button class="mi" id="opt-porkchop"><span class="mi-ico">▦</span><span class="mi-body"><strong>Windows</strong><em>When transfers run cheap</em></span></button>
+      <button class="mi" id="opt-events"><span class="mi-ico">◐</span><span class="mi-body"><strong>Events</strong><em>Sky almanac — tonight and ahead</em></span></button>
+    </div>
+  </div>
+  <div class="hdr-unit">
+    <button class="hdr-btn" id="hdr-view" aria-haspopup="true" aria-expanded="false">
+      <span class="hdr-ico">◉</span><span class="hdr-text">View</span><span class="hdr-count" id="hdr-view-count"></span><span class="hdr-caret">▾</span>
+    </button>
+    <div class="hdr-menu hdr-menu-view" id="hdr-menu-view" aria-hidden="true" aria-label="Display toggles">
+      <div class="vt-grid">
+        <button class="vt" id="opt-orbits">Orbits</button>
+        <button class="vt" id="opt-labels">Labels</button>
+        <button class="vt" id="opt-flow">Flow</button>
+        <button class="vt" id="opt-lagrange">L-points</button>
+        <button class="vt" id="opt-true">True size</button>
+      </div>
+      <div class="hdr-sep">Physics overlays</div>
+      <div class="vt-grid" id="vt-overlays"></div>
+      <button class="mi mi-viz" id="opt-viz"><span class="mi-ico">◔</span><span class="mi-body"><strong>Overlay drawer</strong><em>Frames, pairs &amp; the physics behind each</em></span></button>
+    </div>
+  </div>
 </nav>
 
 <div class="sandbox-hud" id="sandbox-hud">

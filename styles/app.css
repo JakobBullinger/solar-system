@@ -69,17 +69,38 @@ button:focus-visible {
   color: var(--muted);
 }
 
-/* ---- View toggles ---------------------------------------------------------- */
-.toggles {
+/* ---- Header: [✦ Explore ▾] [◉ View ▾] --------------------------------------
+   A right-anchored flex row of two units; each unit is a column holding its
+   control and, below it, an IN-FLOW menu panel. In-flow means two open menus
+   sit side by side and can never overlap each other or fight over z-order. */
+.hdr {
   position: fixed;
   top: 22px;
   right: 26px;
   z-index: 10;
   display: flex;
   gap: 8px;
+  align-items: flex-start;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.toggle {
-  padding: 7px 13px;
+/* A right-docked drawer (info panel / vizpanel, 340px) covers this corner;
+   slide clear while one is open. Desktop only — on phones the drawers are
+   ~90vw and their ✕ is the way back. */
+@media (min-width: 721px) {
+  body.drawer-open .hdr { transform: translateX(-352px); }
+}
+
+.hdr-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.hdr-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
   font-size: 11.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -90,9 +111,124 @@ button:focus-visible {
   backdrop-filter: blur(10px);
   transition: color 0.15s, border-color 0.15s;
 }
-.toggle[aria-pressed="true"] {
+.hdr-btn:hover { color: var(--text); border-color: rgba(140, 160, 200, 0.4); }
+.hdr-btn .hdr-ico { font-size: 12px; }
+.hdr-btn .hdr-caret {
+  font-size: 8px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+.hdr-btn.open .hdr-caret { transform: rotate(180deg); }
+.hdr-btn.active {
   color: var(--amber);
   border-color: rgba(242, 166, 60, 0.45);
+}
+.hdr-count {
+  min-width: 15px;
+  padding: 1px 3px 0;
+  font-size: 9.5px;
+  font-family: var(--mono);
+  text-align: center;
+  color: var(--amber);
+  border: 1px solid rgba(242, 166, 60, 0.35);
+  border-radius: 999px;
+}
+.hdr-count:empty { display: none; }
+
+.hdr-menu {
+  display: none;
+  width: 288px;
+  padding: 6px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(14px);
+}
+.hdr-menu.open { display: block; }
+
+/* Experience rows: icon + name + one-line description */
+.mi {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mi:hover { background: rgba(255, 255, 255, 0.05); }
+.mi .mi-ico {
+  flex: 0 0 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.mi .mi-body { display: flex; flex-direction: column; gap: 1px; }
+.mi .mi-body strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.mi .mi-body em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mi[aria-pressed="true"] {
+  border-color: rgba(242, 166, 60, 0.45);
+  background: rgba(242, 166, 60, 0.07);
+}
+.mi[aria-pressed="true"] .mi-ico { color: var(--amber); border-color: rgba(242, 166, 60, 0.45); }
+/* Feature accents (former .toggle-tour/-missions/-replays chip colours) */
+.mi-tour .mi-ico { color: #ffe1a8; }
+.mi-missions .mi-ico { color: #8ce8dd; }
+.mi-missions[aria-pressed="true"] {
+  border-color: rgba(103, 227, 210, 0.4);
+  background: rgba(103, 227, 210, 0.07);
+}
+.mi-missions[aria-pressed="true"] .mi-ico { color: #8ce8dd; border-color: rgba(103, 227, 210, 0.4); }
+.mi-replays .mi-ico { color: #7db8ff; }
+
+/* View toggles: a two-column grid of small pills */
+.vt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 2px;
+}
+.vt {
+  padding: 8px 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.vt:hover { color: var(--text); }
+.vt[aria-pressed="true"] {
+  color: var(--amber);
+  border-color: rgba(242, 166, 60, 0.45);
+  background: rgba(242, 166, 60, 0.06);
+}
+.hdr-sep {
+  margin: 9px 4px 5px;
+  padding-top: 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
 }
 
 .scale-note {
@@ -701,12 +837,6 @@ button:focus-visible {
 .sb-speed.esc { color: #ff8585; border-color: rgba(255, 133, 133, 0.35); }
 
 /* ---- Mission Designer ------------------------------------------------------------ */
-.toggle-missions {
-  color: #8ce8dd;
-  border-color: rgba(103, 227, 210, 0.4);
-}
-.toggle-missions:hover { border-color: rgba(103, 227, 210, 0.75); }
-
 .missions-hud {
   position: fixed;
   left: 16px;
@@ -967,15 +1097,9 @@ body.touring .tonight-pill { display: none; }
 }
 
 /* ---- Guided tour ---------------------------------------------------------------- */
-.toggle-tour {
-  color: #ffe1a8;
-  border-color: rgba(242, 166, 60, 0.45);
-}
-.toggle-tour:hover { border-color: rgba(242, 166, 60, 0.8); }
-
 /* Cinematic mode: hide the working UI, keep the sky and the caption */
 body.touring .masthead,
-body.touring .toggles,
+body.touring .hdr,
 body.touring .deck,
 body.touring .hint,
 body.touring .panel,
@@ -1107,7 +1231,24 @@ body.touring .scale-note { display: none; }
   .masthead p { display: none; }
   .hint { display: none; }
   .tb-presets { display: none; }
-  .toggles { top: auto; bottom: 158px; right: 12px; flex-direction: column; align-items: flex-end; }
+  /* Header: the two controls grow to finger size; menus break out of the
+     in-flow column and become full-width dropdown sheets under the header. */
+  .hdr { top: 12px; right: 12px; gap: 8px; }
+  .hdr-btn { padding: 12px 14px; font-size: 12px; }
+  .hdr-btn .hdr-text { display: none; }   /* icon-only: fits beside the masthead */
+  .hdr-btn .hdr-ico { font-size: 14px; }
+  .hdr-menu {
+    position: fixed;
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mi { padding: 12px 10px; }
+  .vt { padding: 12px 6px; font-size: 11.5px; }
   .scale-note { display: none; }
 
   /* Chips: one scrollable row instead of a tall wrap */
@@ -1184,11 +1325,6 @@ body.touring .scale-note { display: none; }
 body.touring .ch-banner { display: none; }
 
 /* ---- Mission replays -------------------------------------------------------------- */
-.toggle-replays {
-  border-color: rgba(125, 184, 255, 0.45);
-}
-.toggle-replays:hover { border-color: rgba(125, 184, 255, 0.85); }
-
 .replay-menu {
   position: fixed;
   top: 50%;
@@ -1818,7 +1954,7 @@ body.touring .marsplan { display: none; }
 /* Deep space wants a bare cockpit: keep the masthead and the clock (the
    Voyagers ride it), hide everything solar-system-scale. */
 body.cosmos .rail,
-body.cosmos .toggles,
+body.cosmos .hdr,
 body.cosmos .tonight-pill,
 body.cosmos .tour-offer,
 body.cosmos .hint,

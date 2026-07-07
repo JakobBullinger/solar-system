@@ -69,6 +69,17 @@ async function gotoOrrery(page, params, opts) {
     const O = window.ORRERY;
     return !!(O && O.TimeBar && O.Sandbox && typeof O.Sandbox.tick === 'function' && O.Missions);
   });
+  // The header redesign folded the old always-visible toggle row into the
+  // Explore/View menus. Pin both open (they stack in-flow, nothing overlaps)
+  // so legacy `page.click('#opt-…')` calls — the ID-preservation contract —
+  // stay actionable without touching any spec. The real closed→open→click
+  // flow is covered by header.spec.js, which passes { pinMenus: false }.
+  if (!opts || opts.pinMenus !== false) {
+    await page.evaluate(() => {
+      window.ORRERY.Header.setOpen('explore', true);
+      window.ORRERY.Header.setOpen('view', true);
+    });
+  }
   // Two real animation frames: the scene has actually rendered, not just parsed.
   await page.evaluate(
     () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)))
