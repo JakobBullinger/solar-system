@@ -5,12 +5,25 @@ how we work is in ORCHESTRATION.md. Keep this file updated when plans change —
 it is the only place forward plans live *in the repo* (session memory mirrors
 it but is machine-local).
 
-## In flight
+## In flight (wave 7, launched 2026-07-07 evening — LEO/GEO + Earth realism, user direction)
 
-(nothing — wave 6 landed 2026-07-07 evening: PR previews (#12), Level 27
-eclipse finder (#14), what-if HUD clip fix (#15, user-reported), mobile
-touch audit (#16). Level 21 Mission Control remains gated on human playtest
-feedback about mission pars/difficulty (user: "later").)
+- **Level 28 — Real Earth** (`../solar-system-realearth`,
+  `feature/real-earth`, 4174): baked real geography (`data/geodata.js` RLE
+  landmask + real city lights, zero runtime network), day/night textures
+  from the same real landmask, ocean sun-glint; global scene + Earth-orbit
+  regime materials.
+- **Level 29 — The Orbital Zoo** (`../solar-system-zoo`,
+  `feature/orbital-zoo`, 4175): GPS/MEO, Molniya (63.4° critical
+  inclination), GEO named slots + graveyard, sun-sync; ground tracks on the
+  surface (ISS sinusoid, Molniya figure-8); shadow crossings dim sats.
+  Merges before ascent.
+- **Ascent ride-along** (`../solar-system-ascent`, `feature/ascent-ride`,
+  4176): Level 24's deferred stretch — baked pad-to-ISS ascent (gravity
+  turn, staging, circularization) as a narrated chase-cam ride. Merges LAST.
+
+Wave 6 landed earlier today: PR previews (#12), Level 27 eclipse finder
+(#14), what-if HUD clip fix (#15), mobile touch audit (#16). Level 21
+Mission Control remains gated on human playtest feedback (user: "later").
 
 ## Next, in order
 
