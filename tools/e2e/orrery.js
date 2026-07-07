@@ -54,10 +54,16 @@ const test = base.test.extend({
  * e.g. '?jd=2461000&body=mars' or '?ch=…') and wait until the ORRERY
  * modules are wired and the frame loop has produced real frames.
  */
-async function gotoOrrery(page, params) {
+async function gotoOrrery(page, params, opts) {
   if (!fs.existsSync(DIST)) {
     throw new Error('dist/index.html missing — run `node build.js` first (specs test the built bundle)');
   }
+  // Playwright's use.reducedMotion / Chrome's --force-prefers-reduced-motion
+  // never reach a file:// page here (PR #2 finding) — emulate it explicitly.
+  // Default ON (instant camera snaps, deterministic screenshots); pass
+  // { reducedMotion: false } to test real tweens (see camerapath.spec.js).
+  const rm = !opts || opts.reducedMotion !== false;
+  await page.emulateMedia({ reducedMotion: rm ? 'reduce' : 'no-preference' });
   await page.goto('file://' + DIST + (params || ''));
   await page.waitForFunction(() => {
     const O = window.ORRERY;

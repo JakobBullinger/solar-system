@@ -95,7 +95,7 @@ test('planet chip click flies the camera to the focus distance (reduced motion)'
 });
 
 test('without reduced motion the flight tweens and lands on the same spot', async ({ page }) => {
-  await gotoOrrery(page); // real motion: the 1.6 s cubic ease-out flight
+  await gotoOrrery(page, '', { reducedMotion: false }); // real motion: the 1.6 s cubic ease-out flight
   await page.evaluate(() => {
     window.ORRERY.TimeBar.playing = false;
   });
