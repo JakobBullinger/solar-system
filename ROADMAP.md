@@ -11,11 +11,12 @@ it but is machine-local).
   Playwright suite as a CI job on PRs, with a proven-red teeth check.
   Merges FIRST (small; then the Level 24 PR gets the new gate).
 - **Level 24 — Earth Orbit & Starlink** (`../solar-system-earth`,
-  `feature/earth-orbit`, port 4175): Earth-centered km/minutes scale regime
-  (cosmos.js as zoom-in template), structural Starlink shells with synthetic
-  catalog (no TLEs, zero network) + ISS/GEO anchors; ascent ride-along as
-  stretch. Level 21 Mission Control remains gated on human playtest feedback
-  about mission pars/difficulty.
+  `feature/earth-orbit`, port 4175): DONE, PR open — Earth-centered
+  km/minutes regime + structural Starlink (real Gen1 shells, synthetic
+  Walker catalog, no TLEs/zero network) + ISS/GEO/Moon anchors. The
+  rocket-ascent ride-along stretch was deliberately not attempted — moved
+  to the backlog. Level 21 Mission Control remains gated on human playtest
+  feedback about mission pars/difficulty.
 
 ## Next, in order
 
@@ -23,10 +24,6 @@ it but is machine-local).
   together — unlock arc from "reach Mars" through slingshots, L2
   station-keeping, and asteroid deflection. Mostly game design; the pieces
   exist. Needs human playtest feedback on pars/difficulty first.
-- **Level 24 — Earth Orbit & Starlink** (deliberately deferred until now-ish;
-  wave-sized): new Earth-centered scale regime (km/minutes), STRUCTURAL
-  Starlink constellation render (real shells/planes/inclinations, synthetic
-  catalog — no live TLEs, zero-network purity), rocket ascent ride-alongs.
 
 ## Hosting arc (learning ladder; step 1 done 2026-07-07)
 
@@ -45,6 +42,10 @@ it but is machine-local).
 
 - Eclipse finder in the almanac + animated umbra sweep (level-25 stretch,
   not attempted).
+- Rocket ascent ride-along in the Earth-orbit regime (level-24 stretch, not
+  attempted): scripted launch-to-LEO camera ride on a baked kinematic
+  gravity-turn profile, honestly labeled — the regime's km scale and time
+  controls are already in place for it.
 - L-point close-up camera: back the fly-in off the marker glow.
 - Photo mode; bloom/post-processing; planet shaders II (flowing Jupiter
   bands, ocean glint, aurorae) — the "cinematic" list, additive polish.
