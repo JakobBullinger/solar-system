@@ -161,6 +161,54 @@ test('massive body launched at the Sun merges into it, momentum-conserving', fun
   ok(NB.events.length > 0, 'the HUD got told');
 });
 
+test('DART drill: the baked asteroid hits Earth; deflection grows with lead time', function () {
+  // Constants are baked into sandbox.js WHATIF.dart by the offline shooting
+  // scan (Lambert seed + Newton against this integrator, miss 14 km).
+  const W = load(['data/bodies.js', 'physics/kepler.js', 'physics/nbody.js', 'ui/sandbox.js'])
+    .Sandbox._dev.WHATIF.dart;
+
+  function flight(leadDays) {
+    const O = ctx();
+    const NB = O.NBody;
+    O.TimeBar.jd = W.epoch;
+    const ast = NB.addMassive(W.pos, W.vel,
+      { mu: NB.MU * W.astRatio, radius: W.astRadius, label: 'asteroid', jd: W.epoch });
+    const tof = W.encJd - W.epoch;
+    const tHit = tof - (leadDays || 0);
+    for (let d = 0; d < tHit && ast.alive; d++) NB.step(W.epoch + d, 1);
+    if (leadDays && ast.alive) {
+      // Head-on impactor, 15 km/s closing speed, 0.012 AU out
+      const hp = NB.helioOf(ast, {});
+      const hv = NB.helioVelOf(ast, {});
+      const s = Math.hypot(hv.x, hv.y, hv.z);
+      const dir = { x: hv.x / s, y: hv.y / s, z: hv.z / s };
+      const rel = 15 / NB.KMS_PER_AUDAY;
+      const imp = NB.addMassive(
+        { x: hp.x + dir.x * 0.012, y: hp.y + dir.y * 0.012, z: hp.z + dir.z * 0.012 },
+        { x: hv.x - dir.x * rel, y: hv.y - dir.y * rel, z: hv.z - dir.z * rel },
+        { mu: NB.MU * W.impRatio, radius: W.impRadius, label: 'impactor' });
+      for (let d = 0; d < 6 && ast.alive; d++) NB.step(W.epoch + tHit + d, 1);
+      ok(!imp.alive && imp.mergedInto === ast, 'impactor struck the asteroid');
+    }
+    const p = ast.alive ? NB.predictApproach(ast, 'earth', (leadDays || 0) + 60) : null;
+    return { ast, predict: p };
+  }
+
+  // Undeflected: the prediction machinery itself must call it an impact
+  const base = flight(0);
+  ok(!base.ast.alive && base.ast.mergedInto && base.ast.mergedInto.key === 'earth',
+    'undeflected asteroid merged into Earth (baked trajectory holds)');
+
+  const late = flight(80);
+  const early = flight(150);
+  ok(late.predict && early.predict, 'deflected runs produce predictions');
+  ok(!early.predict.impact, '150 d of lead turns the impact into a miss');
+  ok(early.predict.d > late.predict.d,
+    'deflection grows with lead time: 150 d → ' +
+    Math.round(early.predict.d * 1.496e8).toLocaleString() + ' km vs 80 d → ' +
+    Math.round(late.predict.d * 1.496e8).toLocaleString() + ' km');
+});
+
 test('a heavy intruder pulls the planets off their rails (and clear() puts them back)', function () {
   const O = ctx();
   const NB = O.NBody;

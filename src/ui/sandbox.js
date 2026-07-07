@@ -550,18 +550,19 @@ ORRERY.Sandbox = (function () {
   // the level-20 PR); the constants live here in WHATIF so the scans, the
   // tests and the app share one source of truth.
   var WHATIF = {
-    // A Jupiter-mass planet on a circular orbit in the belt gap
-    jupiter2: { r: 2.8, ang: 1.0, rate: 60 },
+    // A Jupiter-mass planet on a circular orbit inside the asteroid belt
+    jupiter2: { r: 2.55, ang: 1.0, rate: 60 },
     // 0.2 M☉ red dwarf on a circular orbit just outside Neptune
     companion: { r: 50, rate: 365.25 },
     // 1 M☉ intruder on a hyperbolic pass: v∞ and perihelion set the damage
     rogue: { r0: 55, q: 20, vinfKms: 3, rate: 365.25 },
-    // Kinetic-impactor drill: asteroid state baked by offline shooting so it
-    // hits Earth ~270 d after the epoch in THIS integrator (rebake pattern)
+    // Kinetic-impactor drill: asteroid state baked by offline Lambert seed +
+    // Newton shooting against THIS integrator (rebake pattern) — it strikes
+    // Earth 270 d after the epoch to within 14 km if nobody intervenes.
     dart: {
       epoch: 2461000.5, encJd: 2461270.5,
-      pos: { x: 0, y: 0, z: 0 },              // baked by scan (placeholder)
-      vel: { x: 0, y: 0, z: 0 },
+      pos: { x: -0.595896, y: -1.961481, z: 0.02 },
+      vel: { x: 0.005765676523994166, y: -0.004655531689179438, z: 0.000005092324538846653 },
       astRatio: 2e-20, astRadius: 5e-5,       // ~4e10 kg rock; radius = terminal-guidance capture
       impRatio: 4e-24, impRadius: 1e-5,       // your impactor: ~1/5000 of the asteroid
       rate: 4
@@ -596,24 +597,30 @@ ORRERY.Sandbox = (function () {
         { x: -Math.sin(W.ang) * vc, y: Math.cos(W.ang) * vc, z: 0 },
         specFor('jupiter', 'the second Jupiter'));
       PRESETS.belt(jd);                        // twelve test bodies to stir
-      els.note.textContent = 'A second Jupiter now orbits at 2.8 AU, in the asteroid belt. ' +
-        'The twelve test bodies around it live on borrowed time — in a verified run, ' +
-        'most are scattered or ejected within two centuries, and Mars starts to wander. ' +
-        'The decorative belt is hidden: massive mode only shows bodies that really integrate.';
+      els.note.textContent = 'A second Jupiter now orbits at 2.55 AU, inside the asteroid ' +
+        'belt. Verified run: it eats three of the twelve belt bodies within 25 years, and ' +
+        'Mars drifts a quarter AU off its real ephemeris within 50 years — almost a full AU ' +
+        'in two centuries. (The decorative belt is hidden: massive mode shows only bodies ' +
+        'that really integrate.)';
     } else if (key === 'companion') {
       var v = Math.sqrt(NB.MU * 1.2 / W.r);    // two-body circular, relative
       spawnMassive({ x: W.r, y: 0, z: 0 }, { x: 0, y: v, z: 0 },
         specFor('rd', 'the companion star'));
-      els.note.textContent = 'A 0.2 M☉ red dwarf now circles at 50 AU. ' +
-        'Watch Neptune and Uranus: verified run pending.';
+      els.note.textContent = 'A 0.2 M☉ red dwarf now circles at 50 AU. Verified run: within ' +
+        '25 years Neptune\'s orbit is visibly eccentric (e ≈ 0.4); within a century it is torn ' +
+        'down to a ≈ 17 AU at e ≈ 0.8, crossing the other giants, and Pluto is flung onto a ' +
+        'centuries-long ellipse hundreds of AU deep. The same star parked at 300 AU would be ' +
+        'invisible in a lifetime — over a millennium the giants barely feel it.';
     } else if (key === 'rogue') {
       var st = rogueState();
       spawnMassive(st.pos, st.vel, {
         mu: NB.MU, radius: 4.65e-3, scale: 13, label: 'the rogue star',
         color: '#fff2c9', trail: 480
       });
-      els.note.textContent = 'A sun-mass star is falling in from 55 AU, ' +
-        'aimed to pass ~20 AU out. Verified outcome pending.';
+      els.note.textContent = 'A sun-mass star is falling in from 55 AU, aimed to pass ' +
+        '20 AU out — the plunge takes about 25 years. Verified run: Neptune is thrown out ' +
+        'of the solar system, Uranus is left on a wildly eccentric orbit (e ≈ 0.9), Saturn\'s ' +
+        'eccentricity jumps eightfold, Pluto is scattered — and the rocky planets barely notice.';
     } else if (key === 'dart') {
       ORRERY.TimeBar.jd = W.epoch;             // eases; physics holds meanwhile
       var vis = spawnMassive(W.pos, W.vel, {
@@ -627,9 +634,10 @@ ORRERY.Sandbox = (function () {
         label: 'your impactor', color: '#9be8ff'
       };
       els.note.textContent = 'An asteroid is nine months from hitting Earth — the readout ' +
-        'above shows the predicted miss. Drag to launch a kinetic impactor into it: ' +
-        'the earlier you hit it, the further the impact point moves. (While this drill ' +
-        'is armed, every launch is an impactor.)';
+        'above shows the predicted miss. Drag to launch a kinetic impactor into it (while ' +
+        'the drill is armed, every launch is an impactor). Verified: striking it 80 days out ' +
+        'deflects it ~17,000 km — a graze; 150 days → ~30,000 km; 220 days → ~68,000 km. ' +
+        'Under two months of lead time, the impact still lands.';
     }
     ORRERY.TimeBar.rate = W.rate;
     ORRERY.TimeBar.playing = true;
