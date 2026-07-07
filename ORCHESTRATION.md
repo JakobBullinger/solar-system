@@ -20,6 +20,13 @@ Worktree convention: `../solar-system-<name>` on `feature/<name>`, dev server
 port 4174+ (main uses 4173). Example wave 1: `links` (challenge links, 4174),
 `burns` (mid-course burns, 4175), `replays` (mission replays, 4176).
 
+Launching a lane (since wave 5): the orchestrator stages the worktree, the
+bypass-mode `.claude/settings.local.json`, AND the mission brief as
+`.agent-brief.md` in the worktree root (git-excluded). Then
+`tools/launch-lane.sh <name>` — runnable by the human or the orchestrator —
+opens a new Terminal window already running `claude` with the brief
+submitted. No copy-paste. macOS `.command`+`open`, no automation permission.
+
 ## Communication protocol (v2, PR-based — ACTIVE since 2026-07-07)
 
 Live progress and orchestrator→agent nudges stay on the filesystem; the
