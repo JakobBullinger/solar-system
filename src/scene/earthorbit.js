@@ -102,6 +102,17 @@ ORRERY.EarthOrbit = (function () {
     '  vec3 nightCol = tex * 0.05 + texture2D(nightMap, vUv).rgb * 1.2;',
     '  vec3 col = mix(nightCol, dayCol, dayT);',
     '  vec3 vd = normalize(cameraPosition - vWorldPos);',
+    // Ocean sun-glint, same real-coastline-as-ocean-mask trick as the
+    // global shader path (shaders.js PLANET_FRAG) — this regime always
+    // renders Earth, so no gating uniform is needed here.
+    '  float ocean = step(tex.r * 1.3, tex.b) * step(tex.g * 1.05, tex.b);',
+    '  vec3 halfV = normalize(normalize(sunDir) + vd);',
+    // This regime's camera can sit only ~2-3 Earth radii out (LEO close-ups),
+    // close enough that vd sweeps fast across the disc — a much tighter
+    // exponent than a "far camera" glint needs, or the highlight balloons
+    // into a sun-sized blob instead of a sparkle.
+    '  float spec = pow(max(dot(n, halfV), 0.0), 600.0);',
+    '  col += vec3(1.0, 0.98, 0.9) * spec * ocean * lit * 3.2;',
     '  float fr = pow(1.0 - max(dot(vd, n), 0.0), 2.4);',
     '  col += atmoColor * fr * 0.9 * (0.22 + 0.78 * dayT);',
     '  gl_FragColor = vec4(col, 1.0);',

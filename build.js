@@ -19,6 +19,7 @@ const MODULES = [
   'src/data/marsmissions.js',
   'src/data/stars.js',
   'src/data/starlink.js',
+  'src/data/geodata.js',
   'src/physics/kepler.js',
   'src/physics/moon.js',
   'src/physics/eclipse.js',

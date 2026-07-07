@@ -58,6 +58,7 @@ ORRERY.Textures = (function () {
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+  function lerpRGB(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
 
   /** Paint per-pixel: cb(u, v, lat) → [r,g,b]. u wraps, lat in [-90, 90]. */
   function perPixel(cb) {
@@ -147,29 +148,31 @@ ORRERY.Textures = (function () {
       });
     },
 
+    // Real coastlines (ORRERY.GeoData's baked landmask) + a coarse real
+    // desert-belt hint; noise is decorative only now (relief/current
+    // shimmer), it no longer decides what is land — see geodata.js header
+    // for the longitude convention this and earthNight() both rely on.
     earth: function () {
+      var Geo = ORRERY.GeoData;
       var n = makeNoise(42);
       return perPixel(function (u, v, lat) {
-        var m = n.fbm(u * 5, v * 2.6, 6, 5);
+        var lon = u * 360 - 180;
         var polar = Math.abs(lat) - 68 + n.fbm(u * 9, v * 4, 3, 9) * 10;
         if (polar > 0) return [235, 241, 246];
-        if (m > 0.52) { // land
+        if (Geo.isLandUV(u, v)) {
           var h = n.fbm(u * 11 + 40, v * 6, 4, 11);
           var green = [72, 110, 58], sand = [168, 148, 96], rock = [116, 96, 72];
+          var desert = [199, 171, 118];
           var warm = clamp01(1 - Math.abs(lat) / 60);
-          var r = lerp(rock[0], lerp(green[0], sand[0], clamp01(h * 1.6 - 0.4)), warm);
-          var g = lerp(rock[1], lerp(green[1], sand[1], clamp01(h * 1.6 - 0.4)), warm);
-          var b = lerp(rock[2], lerp(green[2], sand[2], clamp01(h * 1.6 - 0.4)), warm);
-          return [r, g, b];
+          var veg = Geo.isDesert(lat, lon) ?
+            lerpRGB(desert, sand, clamp01(h * 0.7)) :
+            lerpRGB(green, sand, clamp01(h * 1.6 - 0.4));
+          var rgb = lerpRGB(rock, veg, warm);
+          return rgb;
         }
-        var depth = clamp01((0.52 - m) * 4);
-        var cloud = n.fbm(u * 7 + 90, v * 5, 4, 7);
-        var r = lerp(38, 12, depth), g = lerp(92, 48, depth), b = lerp(148, 110, depth);
-        if (cloud > 0.60) {
-          var cw = clamp01((cloud - 0.60) * 5);
-          r = lerp(r, 236, cw); g = lerp(g, 240, cw); b = lerp(b, 244, cw);
-        }
-        return [r, g, b];
+        var shimmer = n.fbm(u * 8 + 90, v * 6, 4, 8);
+        var depth = clamp01(0.5 + (shimmer - 0.5) * 0.7);
+        return [lerp(14, 40, depth), lerp(58, 98, depth), lerp(108, 156, depth)];
       });
     },
 
@@ -254,22 +257,29 @@ ORRERY.Textures = (function () {
   };
 
   /**
-   * Earth's night side: city lights. Reuses the day texture's noise seed so
-   * lights fall exactly on the same landmask, clustered at temperate
-   * latitudes with a fine grain so cities read as points, not haze.
+   * Earth's night side: real city lights (ORRERY.GeoData.CITIES — real
+   * places, intensity sampled from the real NASA night-lights composite,
+   * see geodata.js). Points are splatted as small radial glows in the SAME
+   * (u, v) space earth() reads its landmask from, so a city always sits on
+   * its own coastline; overlapping glows add, so dense regions (Europe,
+   * the US East Coast) read as a bright cluster rather than isolated dots.
    */
   function earthNight() {
-    var n = makeNoise(42);
-    var c = makeNoise(142);
-    return perPixel(function (u, v, lat) {
-      var m = n.fbm(u * 5, v * 2.6, 6, 5);
-      var polar = Math.abs(lat) - 68 + n.fbm(u * 9, v * 4, 3, 9) * 10;
-      if (m <= 0.52 || polar > 0) return [0, 0, 0];
-      var cluster = c.fbm(u * 20, v * 11, 4, 20);
-      var warm = clamp01(1 - Math.abs(lat) / 58);
-      var glow = clamp01((cluster - 0.56) * 5) * warm;
-      var grain = c.noise(u * 420, v * 210, 420);
-      glow *= 0.35 + 1.1 * clamp01((grain - 0.4) * 2);
+    var Geo = ORRERY.GeoData;
+    var pts = Geo.CITIES.map(function (c) {
+      var uv = Geo.uvOf(c[1], c[2]);
+      return { x: uv[0] * W, y: uv[1] * H, r: 1.6 + c[3] * 1.8, i: c[3] };
+    });
+    return perPixel(function (u, v) {
+      var X = u * W, Y = v * H;
+      var glow = 0;
+      for (var k = 0; k < pts.length; k++) {
+        var p = pts[k];
+        var dx = Math.min(Math.abs(X - p.x), W - Math.abs(X - p.x));
+        var dy = Y - p.y;
+        var d = Math.sqrt(dx * dx + dy * dy) / p.r;
+        if (d < 2.2) glow += Math.exp(-d * d * 2.0) * p.i;
+      }
       glow = clamp01(glow);
       return [255 * glow, 186 * glow, 105 * glow];
     });
