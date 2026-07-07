@@ -2550,3 +2550,77 @@ body.earthorbit .panel { display: none; }
 @media (max-width: 720px) {
   .sandbox-hud { max-height: calc(100vh - 210px - 94px); }
 }
+
+/* ---- Mobile & touch (touch-audit fixes) --------------------------------------
+   Appended as one block (lane: feature/mobile-touch). Everything here is
+   additive and scoped to coarse pointers or narrow viewports — desktop
+   rendering is untouched. */
+
+/* Cosmos has no Esc and no wheel on touch: a visible way home. Hidden for
+   fine pointers so the desktop cockpit stays chrome-free. */
+.cz-exit {
+  display: none;
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  padding: 10px 16px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(10, 14, 24, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  pointer-events: auto;
+}
+@media (pointer: coarse) {
+  .cz-exit { display: block; }
+}
+
+/* Touch drags that begin on a planet label are pointer-cancelled by the
+   browser (tap targets magnetize nearby touches), so a launch/burn drag dies
+   before it reaches the canvas. While an aim mode owns the canvas, coarse
+   pointers see the label layer as click-through; mouse users keep label
+   clicks (they can aim around them). */
+@media (pointer: coarse) {
+  body.sandboxing #labels,
+  body.sandboxing #labels .planet-label,
+  body.ms-aiming #labels,
+  body.ms-aiming #labels .planet-label { pointer-events: none; }
+}
+
+@media (max-width: 720px) {
+  /* An OPEN header menu must win the phone screen: lift the header above the
+     HUDs (same z tier, later in DOM) and mute the two overlays the audit
+     caught eating menu taps — the first-visit tour offer overlaps the bottom
+     menu items, the sandbox HUD covers the whole menu. */
+  body:has(.hdr-menu.open) .hdr { z-index: 26; }
+  body:has(.hdr-menu.open) .tour-offer,
+  body:has(.hdr-menu.open) .sandbox-hud,
+  body:has(.hdr-menu.open) .missions-hud {
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* All eight Explore items fit without scrolling on a 664px-tall phone
+     (Events sat below the fold at the old reserve). */
+  .hdr-menu { max-height: calc(100vh - 170px); }
+
+  /* Finger-sized close targets: the drawers' ✕ buttons measured 28×28. */
+  #mp-close, #ev-close, #pc-close, #p-close, #rp-close,
+  #vizpanel header button,
+  .eo-card-close, .cz-card-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The Mars planner header (and its ✕) scrolled away with the timeline. */
+  .marsplan header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(18, 13, 14, 0.96);
+  }
+
+  /* Timebar scrubbing: a 16px hit strip is a fiddly finger target. */
+  #tb-slider { height: 30px; }
+}
