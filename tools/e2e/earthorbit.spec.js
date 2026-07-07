@@ -46,7 +46,27 @@ test('enter → constellation renders → dossier → LEO moves / GEO hangs → 
   expect(inMode, 'minutes-scale default rate').toBeLessThan(0.05);
   await expect(page.locator('.eo-rate.on')).toHaveCount(1);
 
-  // Wide view: Earth + LEO swarm + GEO ring (reduced motion = flight landed)
+  // Wide view: Earth + LEO swarm + GEO ring. The clock starts at Date.now(),
+  // so sun-glow/terminator framing varies run to run — and this mostly-black
+  // scene sat within noise of the CI checker's 2%-lit threshold (PR #10 CI
+  // flake: 1.97% on the red run). Make the frame deterministic: pin the
+  // clock, then shoot from the day side so the fully lit Earth disc
+  // guarantees the margin.
+  await page.evaluate(() => {
+    const O = window.ORRERY;
+    O.TimeBar.playing = false;
+    O.TimeBar.snapJd(2461200.25); // fixed date → fixed sun direction & phases
+    const earth = O.DATA.PLANETS.filter((p) => p.key === 'earth')[0];
+    const h = O.Kepler.heliocentric(earth.el, O.TimeBar.jd);
+    const to = new window.THREE.Vector3(-h.x, -h.z, h.y).normalize().multiplyScalar(88);
+    to.y += 26; // elevated, so the GEO ring reads as an ellipse
+    O.CameraPath.begin({ to, instant: true });
+  });
+  // A few extra real frames: SwiftShader's first frames can lag the state
+  await page.evaluate(
+    () => new Promise((res) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res))))
+  );
   await screenshot(page, 'earthorbit-wide').then(assertSceneRendered);
 
   // --- Shell dossier -------------------------------------------------------
