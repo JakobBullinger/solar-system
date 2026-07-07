@@ -2534,3 +2534,19 @@ body.earthorbit .panel { display: none; }
 .ev-eclipse.ev-ecl-solar { border-left-color: rgba(255, 214, 90, 0.85); }
 .ev-eclipse.ev-ecl-lunar { border-left-color: rgba(226, 110, 60, 0.85); }
 .ev-eclipse .ev-date { color: var(--text); }
+/* ---- Fix: what-if scenario content clipped at the viewport top --------------------
+   The sandbox HUD is bottom-anchored (bottom: 148px) with unbounded height, so the
+   massive-mode banner + verified scenario caption (~+300px) grew UPWARD — on
+   laptop-height viewports the panel top ended up above the screen (top ≈ −100px at
+   720px tall) and under the fixed header. Cap it below the header row (buttons end
+   at y=56; the panel is content-box, so the cap excludes its 28px padding + 2px
+   border) and scroll inside; sandbox.js pins the scroll to the bottom when a
+   scenario loads so the new banner/caption/restore button stay in view. */
+.sandbox-hud {
+  max-height: calc(100vh - 148px - 94px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 720px) {
+  .sandbox-hud { max-height: calc(100vh - 210px - 94px); }
+}

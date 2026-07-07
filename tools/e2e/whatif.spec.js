@@ -150,6 +150,33 @@ test('DART drill: readout predicts impact, then a real strike deflects it', asyn
   await screenshot(page, 'whatif-dart').then(assertSceneRendered);
 });
 
+test('scenario UI never clips at the viewport top (regression: bottom-anchored HUD outgrew laptop screens)', async ({ page }) => {
+  // The user-reported clip needs a laptop-height viewport: at 1280x720 the
+  // unfixed HUD topped out at ~-100px. Check the default size too.
+  for (const vp of [{ width: 1600, height: 1000 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(vp);
+    await gotoOrrery(page);
+    await openSandbox(page);
+    for (const key of ['jupiter2', 'companion', 'rogue', 'dart']) {
+      await page.click(`[data-scenario="${key}"]`);
+      await expect(page.locator('#sb-massive')).toHaveClass(/show/);
+      const boxes = await page.evaluate(() => {
+        const grab = (sel) => document.querySelector(sel).getBoundingClientRect().toJSON();
+        return { hud: grab('#sandbox-hud'), restore: grab('#sb-restore'), note: grab('#sb-note') };
+      });
+      const label = `${key} @ ${vp.width}x${vp.height}`;
+      expect(boxes.hud.top, `${label}: HUD top inside the viewport`).toBeGreaterThanOrEqual(0);
+      expect(boxes.hud.bottom, `${label}: HUD bottom inside the viewport`).toBeLessThanOrEqual(vp.height);
+      // The scenario's new content (banner/restore/caption) sits at the panel
+      // bottom — the scroll pin must leave it visible, not below the fold.
+      for (const [name, b] of [['restore button', boxes.restore], ['caption', boxes.note]]) {
+        expect(b.top, `${label}: ${name} in view`).toBeGreaterThanOrEqual(boxes.hud.top);
+        expect(b.bottom, `${label}: ${name} in view`).toBeLessThanOrEqual(boxes.hud.bottom + 1);
+      }
+    }
+  }
+});
+
 test('missions refuse to start while massive mode is active', async ({ page }) => {
   await gotoOrrery(page);
   await openSandbox(page);
