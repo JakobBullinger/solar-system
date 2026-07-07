@@ -24,6 +24,8 @@ const MODULES = [
   'src/physics/lambert.js',
   'src/physics/lagrange.js',
   'src/scene/camerapath.js',
+  'src/scene/trajanim.js',
+  'src/scene/orbitflow.js',
   'src/scene/textures.js',
   'src/scene/shaders.js',
   'src/scene/environment.js',
@@ -43,6 +45,7 @@ const MODULES = [
   'src/ui/porkchop.js',
   'src/ui/marsplanner.js',
   'src/ui/challenge.js',
+  'src/ui/director.js',
   'src/ui/permalink.js',
   'src/main.js'
 ];

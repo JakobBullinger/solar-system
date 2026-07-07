@@ -4,6 +4,15 @@
  * Simulation time is a Julian date advanced by a signed rate in
  * days-per-real-second, chosen on a log slider from real time (1 s/s)
  * up to one year per second.
+ *
+ * Clock jumps (porkchop picks, almanac events, mission epochs, "Now")
+ * are not teleports but a short logarithmic ease — most of the distance
+ * covered immediately, a gentle landing on the target date, so the sky
+ * visibly swings instead of blinking. Consumers that must not see
+ * mid-flight dates check the `easing` getter (sandbox accumulates the
+ * whole jump into one step, so the n-body 30-day teleport guard keeps
+ * its exact single-frame semantics). Reduced motion snaps, as does any
+ * jump too small to read.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -14,6 +23,23 @@ ORRERY.TimeBar = (function () {
   var MAX = 365.25;                  // one year per second
   var LOG_MIN = Math.log10(REAL);
   var LOG_MAX = Math.log10(MAX);
+
+  var reducedMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var EASE_S = 0.55;                 // jump duration, seconds
+  var EASE_MIN = 1;                  // jumps under a day just snap
+  var easeFlight = null;             // { from, to, t }
+  function logEase(t) { return Math.log(1 + 47 * t) / Math.log(48); }
+
+  /** Route every clock assignment here: big jumps ease, small ones snap. */
+  function setJd(v) {
+    if (!reducedMotion && Math.abs(v - state.jd) > EASE_MIN) {
+      easeFlight = { from: state.jd, to: v, t: 0 };
+    } else {
+      easeFlight = null;
+      state.jd = v;
+    }
+  }
 
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -83,7 +109,7 @@ ORRERY.TimeBar = (function () {
     });
 
     els.now.addEventListener('click', function () {
-      state.jd = ORRERY.Kepler.julianDate(Date.now());
+      setJd(ORRERY.Kepler.julianDate(Date.now()));
       updateReadout();
     });
 
@@ -109,6 +135,19 @@ ORRERY.TimeBar = (function () {
 
   /** Advance simulation clock. dt in real seconds. */
   function tick(dt) {
+    if (easeFlight) {
+      // The rate is suspended while the jump flies; playback resumes
+      // from the target date the moment the ease lands.
+      easeFlight.t = Math.min(1, easeFlight.t + dt / EASE_S);
+      state.jd = easeFlight.from +
+        (easeFlight.to - easeFlight.from) * logEase(easeFlight.t);
+      if (easeFlight.t >= 1) {
+        state.jd = easeFlight.to;
+        easeFlight = null;
+      }
+      updateClockOnly();
+      return;
+    }
     if (state.playing) state.jd += state.rate * dt;
     if (state.playing) updateClockOnly();
   }
@@ -128,7 +167,15 @@ ORRERY.TimeBar = (function () {
     init: init,
     tick: tick,
     get jd() { return state.jd; },
-    set jd(v) { state.jd = v; updateReadout(); },
+    set jd(v) { setJd(v); updateReadout(); },
+    /** Teleport without the ease — for choreography that immediately
+     *  re-integrates against the new date (replay skips, simulate). */
+    snapJd: function (v) {
+      easeFlight = null;
+      state.jd = v;
+      updateReadout();
+    },
+    get easing() { return !!easeFlight; },
     get playing() { return state.playing; },
     set playing(v) { state.playing = v; updateReadout(); },
     get rate() { return state.rate; },

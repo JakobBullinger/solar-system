@@ -152,7 +152,12 @@ ORRERY.Sandbox = (function () {
     line.frustumCulled = false;
 
     group.add(sprite, line);
-    var vis = { p: p, sprite: sprite, line: line, count: 0, trail: trail };
+    var vis = {
+      p: p, sprite: sprite, line: line, count: 0, trail: trail,
+      color: c,                                  // base for the age-fade
+      jds: new Float64Array(trail),              // sim time each point was laid
+      burnsSeen: 0                               // fired-burn count → flare
+    };
     visuals.push(vis);
     updateHud();
     return vis;
@@ -167,9 +172,78 @@ ORRERY.Sandbox = (function () {
 
   var headScene = new THREE.Vector3();
 
+  // --- Burn flares -------------------------------------------------------------
+  // A short additive bloom where an impulse fired — mid-course burns are
+  // otherwise invisible outside the HUD. Real-time lifetime: a flare
+  // finishes even if the sim clock is paused the next frame.
+  var flares = [];
+  var flareClock = 0;
+
+  /** Bloom at a heliocentric AU position (replays call this on scripted burns). */
+  function flareAt(posAU, color) {
+    if (!glowTex) glowTex = ORRERY.Textures.glowSprite('rgba(255,255,255,0.95)', 'rgba(255,255,255,0.12)');
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: new THREE.Color(color || '#ffe9c9'),
+      blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+    }));
+    K.toScene(posAU, headScene);
+    s.position.copy(headScene);
+    s.scale.setScalar(2);
+    group.add(s);
+    flares.push({ sprite: s, t: 0 });
+  }
+
+  function updateFlares() {
+    if (!flares.length) { flareClock = 0; return; }
+    var now = performance.now();
+    var dt = flareClock ? Math.min((now - flareClock) / 1000, 0.1) : 0;
+    flareClock = now;
+    for (var i = flares.length - 1; i >= 0; i--) {
+      var f = flares[i];
+      f.t += dt / 1.1;
+      if (f.t >= 1) {
+        group.remove(f.sprite);
+        flares.splice(i, 1);
+        continue;
+      }
+      var e = 1 - Math.pow(1 - f.t, 3);
+      f.sprite.scale.setScalar(2.5 + 11 * e);
+      f.sprite.material.opacity = Math.pow(1 - f.t, 1.5);
+    }
+  }
+
+  /** Age-fade: per-vertex color scaled by how long ago (sim time) each
+   *  point was laid, so the tail dissolves by actual age — dense slow
+   *  stretches hold their glow, fast stretches fade in flight. */
+  function fadeTrail(vis, jdNow) {
+    if (vis.count < 2) return;
+    var cols = vis.line.geometry.attributes.color;
+    var span = Math.max(Math.abs(jdNow - vis.jds[vis.count - 1]), 1e-9);
+    for (var j = 0; j < vis.count; j++) {
+      var f = Math.pow(Math.max(0, 1 - Math.abs(jdNow - vis.jds[j]) / span), 1.6);
+      cols.array[j * 3] = vis.color.r * f;
+      cols.array[j * 3 + 1] = vis.color.g * f;
+      cols.array[j * 3 + 2] = vis.color.b * f;
+    }
+    cols.needsUpdate = true;
+  }
+
+  var easePendJd = null;           // slice start deferred across a clock ease
+
   /** Advance physics across the frame's time slice and refresh visuals. */
   function tick(jd0, jd1) {
-    if (!visuals.length) return;
+    updateFlares();
+    if (!visuals.length) { easePendJd = null; return; }
+
+    // While the time bar eases a clock jump, hold the physics and treat
+    // the whole jump as the single step it used to be — so the n-body
+    // 30-day teleport guard sees exactly the same delta as before.
+    if (ORRERY.TimeBar.easing) {
+      if (easePendJd === null) easePendJd = jd0;
+      return;
+    }
+    if (easePendJd !== null) { jd0 = easePendJd; easePendJd = null; }
+
     NB.step(jd0, jd1 - jd0);
 
     var moved = jd1 !== jd0;
@@ -179,6 +253,13 @@ ORRERY.Sandbox = (function () {
       K.toScene(vis.p.pos, headScene);
       vis.sprite.position.copy(headScene);
 
+      if (vis.p.burns) {
+        var fired = 0;
+        for (var b = 0; b < vis.p.burns.length; b++) if (vis.p.burns[b].done) fired++;
+        if (fired > vis.burnsSeen) flareAt(vis.p.pos, vis.p.color);
+        vis.burnsSeen = fired;
+      }
+
       if (moved) {
         var pos = vis.line.geometry.attributes.position;
         var arr = pos.array;
@@ -187,11 +268,15 @@ ORRERY.Sandbox = (function () {
           arr[j * 3] = arr[(j - 1) * 3];
           arr[j * 3 + 1] = arr[(j - 1) * 3 + 1];
           arr[j * 3 + 2] = arr[(j - 1) * 3 + 2];
+          vis.jds[j] = vis.jds[j - 1];
         }
         arr[0] = headScene.x; arr[1] = headScene.y; arr[2] = headScene.z;
+        vis.jds[0] = jd1;
         vis.count = Math.min(vis.count + 1, vis.trail);
-        vis.line.geometry.setDrawRange(0, vis.count);
+        // A draw-in (TrajAnim) may own the draw range for a moment
+        if (!vis.line.userData.trajAnim) vis.line.geometry.setDrawRange(0, vis.count);
         pos.needsUpdate = true;
+        fadeTrail(vis, jd1);
       }
     }
   }
@@ -399,6 +484,7 @@ ORRERY.Sandbox = (function () {
     runVoyager: function () { PRESETS.voyager(); },
     addBody: function (pos, vel, color, trailLen) { return spawn(pos, vel, color, trailLen); },
     removeBody: function (vis) { if (visuals.indexOf(vis) !== -1) { removeVisual(vis); updateHud(); } },
+    flareAt: flareAt,
     serialize: serialize,
     get active() { return active; }
   };
