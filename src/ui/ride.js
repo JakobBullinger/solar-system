@@ -10,6 +10,12 @@
  * Close flybys pass nearer than a planet's compressed mesh radius, so the
  * chase camera is pushed out of planet interiors rather than clipping
  * through the cloud tops.
+ *
+ * The chase is NOT a CameraPath flight — it follows a moving target every
+ * frame with its own smoothing, and main.js suspends CameraPath entirely
+ * while a ride is active. Only the exit boundary touches the primitive:
+ * any flight left pending (begun before or during the ride, e.g. by an
+ * onStop handler) is cancelled so it cannot resume on the way out.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -19,7 +25,7 @@ ORRERY.Ride = (function () {
   var camera, controls, canvas;
   var avoid = [];                    // { obj, radius } — sun + planets
   var active = false;
-  var getPos = null, isAlive = null, onStop = null, onExitCam = null;
+  var getPos = null, isAlive = null, onStop = null;
   var back = 8;
   var first = true;
   var els = {};
@@ -36,7 +42,6 @@ ORRERY.Ride = (function () {
     controls = opts.controls;
     canvas = opts.canvas;
     avoid = opts.avoid || [];
-    onExitCam = opts.onExitCam || null;
 
     els.hud = document.getElementById('ride-hud');
     els.label = document.getElementById('ride-label');
@@ -111,7 +116,10 @@ ORRERY.Ride = (function () {
     els.hud.classList.remove('show');
     if (onStop) onStop();
     onStop = null;
-    if (onExitCam) onExitCam();
+    // After onStop on purpose: a flight the handler just began (e.g. the
+    // replay module's flyHome) is discarded too — the ride hands the camera
+    // back exactly where the chase left it, as it always has.
+    ORRERY.CameraPath.cancel();
   }
 
   return {

@@ -92,6 +92,7 @@
   var pickables = selectables.concat(moonEntries, lagrange.entries);
 
   // --- UI -------------------------------------------------------------------
+  ORRERY.CameraPath.init({ camera: camera, controls: controls });
   ORRERY.TimeBar.init();
   ORRERY.Panel.init(
     function () { follow = null; },
@@ -110,8 +111,7 @@
     canvas: canvas,
     avoid: [{ obj: sun, radius: DATA.SUN.sceneRadius }].concat(
       planets.map(function (g) { return { obj: g, radius: g.userData.enhancedRadius }; })
-    ),
-    onExitCam: function () { flyT = 1; }   // cancel any stale fly tween
+    )
   });
   ORRERY.Missions.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
   ORRERY.Porkchop.init();
@@ -140,7 +140,7 @@
       return ORRERY.Ride.active || ORRERY.Tour.active ||
         ORRERY.Sandbox.active || ORRERY.Missions.active;
     },
-    onEnter: function () { follow = null; flyT = 1; }
+    onEnter: function () { follow = null; }   // cosmos cancels flights itself
   });
 
   // Planet nav rail
@@ -183,9 +183,9 @@
   }
 
   // --- Selection & camera choreography --------------------------------------
+  // Flights (focus / fly home) ride ORRERY.CameraPath — the shared primitive
+  // owns the tween, reduced-motion snapping, and the one-flight-at-a-time rule.
   var follow = null;
-  var flyFrom = new THREE.Vector3(), flyTo = new THREE.Vector3();
-  var flyT = 1;
   var HOME_POS = new THREE.Vector3(0, 165, 330);
 
   /** Camera-only part of selection: follow a body and fly the camera to it. */
@@ -195,17 +195,13 @@
     var r = entry.userData.isSun ? DATA.SUN.sceneRadius : entry.userData.enhancedRadius;
     var dist = Math.max(r * 7, 6) * (distMul || 1);
     var dir = camera.position.clone().sub(controls.target).normalize();
-    flyFrom.copy(camera.position);
-    flyTo.copy(target).add(dir.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.35, 0));
-    flyT = reducedMotion ? 1 : 0;
-    if (reducedMotion) camera.position.copy(flyTo);
+    ORRERY.CameraPath.begin({
+      to: target.add(dir.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.35, 0))
+    });
   }
 
   function flyHome() {
-    flyFrom.copy(camera.position);
-    flyTo.copy(HOME_POS);
-    flyT = reducedMotion ? 1 : 0;
-    if (reducedMotion) camera.position.copy(HOME_POS);
+    ORRERY.CameraPath.begin({ to: HOME_POS });
   }
 
   function select(entry) {
@@ -284,8 +280,6 @@
   var tmp = new THREE.Vector3();
   var jdPrev = ORRERY.TimeBar.jd;
 
-  function ease(t) { return 1 - Math.pow(1 - t, 3); }
-
   function animate() {
     requestAnimationFrame(animate);
     var dt = Math.min(clock.getDelta(), 0.1);
@@ -340,14 +334,13 @@
     asteroids.rotation.y += asteroids.userData.spinRate * dt;
     kuiper.rotation.y += kuiper.userData.spinRate * dt;
 
-    // Camera: ride-along owns it entirely; otherwise fly tween + follow
+    // Camera: ride-along owns it entirely; otherwise flight + follow.
+    // A flight begun mid-ride is deliberately never ticked here — Ride
+    // cancels it on exit, so it can neither fight the chase nor resume.
     if (ORRERY.Ride.active) {
       ORRERY.Ride.tick(dt);
     } else {
-      if (flyT < 1) {
-        flyT = Math.min(1, flyT + dt / 1.6);
-        camera.position.lerpVectors(flyFrom, flyTo, ease(flyT));
-      }
+      ORRERY.CameraPath.tick(dt);
       if (follow) {
         follow.getWorldPosition(tmp);
         controls.target.lerp(tmp, reducedMotion ? 1 : 0.12);

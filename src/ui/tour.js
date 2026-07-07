@@ -7,6 +7,10 @@
  * (Halley 1986, Voyager 1977). While touring, the working UI hides behind a
  * caption card; stops advance automatically or via ◂ ▸ / arrow keys, and
  * Escape exits. The visitor's clock state is restored on the way out.
+ *
+ * Stop-to-stop camera flights ride ORRERY.CameraPath through the focus /
+ * flyHome hooks: each stop begins a new flight, which cancels the previous
+ * one — jumping between stops mid-flight is safe by construction.
  */
 window.ORRERY = window.ORRERY || {};
 
