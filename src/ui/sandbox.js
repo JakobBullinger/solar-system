@@ -347,6 +347,9 @@ ORRERY.Sandbox = (function () {
       if (els.massive) els.massive.classList.toggle('show', on);
       if (!on && els.miss) { els.miss.textContent = ''; els.events.textContent = ''; }
       updateHud();
+      // The banner lives at the bottom of a panel that scrolls when it
+      // outgrows the viewport (app.css max-height cap) — keep it in view.
+      if (on && els.hud) els.hud.scrollTop = els.hud.scrollHeight;
     }
     if (!on && !ptrails.length) return;
 
@@ -642,6 +645,10 @@ ORRERY.Sandbox = (function () {
     ORRERY.TimeBar.rate = W.rate;
     ORRERY.TimeBar.playing = true;
     updateHud();
+    // The caption sits at the bottom of a panel that scrolls when it outgrows
+    // the viewport (app.css max-height cap) — show it immediately, before the
+    // next frame's tickRegime pins the massive banner too.
+    if (els.hud) els.hud.scrollTop = els.hud.scrollHeight;
   }
 
   function specFor(clsKey, label) {
