@@ -36,6 +36,7 @@ done-signal is now a pull request. Untracked local files (in
 | Channel | Writer | Meaning |
 |---|---|---|
 | `.agent-status.md` | agent | append-only progress log (`HH:MM message`) |
+| `.agent-status.md` (main checkout) | orchestrator | same format for the orchestrator's own actions (merges, deploys, lane launches) — fleet.js shows it on the `main` row; the durable record stays git history + PRs |
 | `.orchestrator-inbox.md` | orchestrator | instructions/nudges for the agent |
 | **pull request** | agent | replaces v1's `.agent-done`: feature finished **and verified**; the PR body is the handoff (what changed / how verified / merge caveats) |
 
