@@ -48,8 +48,6 @@ mission pars/difficulty (user: "later").
 
 ## Backlog (small, any gap)
 
-- Eclipse finder in the almanac + animated umbra sweep (level-25 stretch,
-  not attempted).
 - Rocket ascent ride-along in the Earth-orbit regime (level-24 stretch, not
   attempted): scripted launch-to-LEO camera ride on a baked kinematic
   gravity-turn profile, honestly labeled — the regime's km scale and time
@@ -59,12 +57,17 @@ mission pars/difficulty (user: "later").
   bands, ocean glint, aurorae) — the "cinematic" list, additive polish.
 - Comet rendezvous + Venus-assist-to-Mercury missions (better with burns +
   insertion now in the game).
-- CI dedupe: PR branches trigger both `push` and `pull_request` runs (double
-  ~3.5 min e2e jobs per PR) — restrict the push trigger to main.
-- Fleet dashboard: teach tools/fleet.js to read background-subagent
-  transcripts (today the session-telemetry columns only see per-worktree
-  terminal sessions; status lines and PR states work either way).
-- Wildcards: light-time delay rendering; low-thrust ion propulsion missions.
+- Command palette / search: press `/`, type "Halley" / "eclipse" / "ride
+  ISS" → fly there. Discoverability for ~27 levels of buried features
+  (brainstorm 2026-07-07).
+- Performance pass on a mid-range phone: frame budget with Starlink's 4,408
+  instanced sats + all overlay modes (brainstorm 2026-07-07).
+- Historical sky / "your birthday sky": almanac machinery + a date input →
+  that night's sky, shareable permalink (brainstorm 2026-07-07).
+- Procedural sound (offline-pure, zero-asset): Kepler-driven ambient tones,
+  burn rumble; would transform director/attract mode (brainstorm 2026-07-07).
+- Wildcards: light-time delay rendering; low-thrust ion propulsion missions;
+  WebXR/VR mode (wave-sized).
 
 ## Deliberately deferred
 
