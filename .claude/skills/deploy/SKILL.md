@@ -10,6 +10,15 @@ Since 2026-07-07 the PRIMARY deploy is automatic: every push to `main` ships
 `.github/workflows/deploy.yml` (verify with `gh run list --workflow=deploy.yml`).
 So "deploying" is: get verified work onto main and push.
 
+Mechanism (since PR previews): Pages serves the **`gh-pages` branch** (root),
+not an Actions artifact. `deploy.yml` builds main and pushes the root
+`index.html` to that branch; `pr-preview.yml` parks per-PR builds under
+`previews/pr-<n>/` on the same branch (auto-comment on the PR, deleted on
+close). Deploy's last step polls the live URL until it serves the exact
+built bytes — a green Deploy run MEANS the site updated, and it goes red if
+the Pages source setting ever drifts off "branch: gh-pages, path /". Never
+edit the gh-pages branch by hand; the two workflows own it.
+
 1. Confirm on main and clean: `git status -sb`.
 2. `node build.js` + `npm test` — must be clean/green.
 3. Run `/headless-check` if the change wasn't already verified post-merge.

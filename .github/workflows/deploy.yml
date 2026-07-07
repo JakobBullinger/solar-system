@@ -2,26 +2,33 @@ name: Deploy
 
 # Publishes the built single-file app to GitHub Pages on every push to main.
 # The CI workflow verifies (build + tests + smoke); this one ships.
+#
+# Pages serves the gh-pages BRANCH (build_type=legacy), not an Actions
+# artifact: this job owns ONLY the root index.html, and pr-preview.yml parks
+# per-PR builds under previews/pr-<n>/ on the same branch — main's site and
+# previews coexist. This job must never touch previews/.
+#
+# The final step polls the live URL until it serves the exact bytes just
+# built, so a green Deploy run MEANS the site updated — and the run goes red
+# loudly if the Pages source is ever misconfigured (it must be "Deploy from
+# a branch: gh-pages /(root)", switchable via
+#   gh api -X PUT repos/<owner>/<repo>/pages \
+#     -f build_type=legacy -f "source[branch]=gh-pages" -f "source[path]=/").
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: deploy-main
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,10 +36,43 @@ jobs:
           node-version: 20
       - name: Build
         run: node build.js
-      - name: Stage site
-        run: mkdir -p _site && cp dist/index.html _site/index.html
-      - uses: actions/upload-pages-artifact@v3
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
         with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          ref: gh-pages
+          path: site
+      - name: Publish root index.html to gh-pages
+        run: |
+          cp dist/index.html site/index.html
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "deploy: main @ ${GITHUB_SHA}" || { echo "site already current"; exit 0; }
+          # The gh-pages branch is shared with preview deploys; races resolve
+          # cleanly because the writers touch disjoint paths (root vs
+          # previews/pr-<n>/) — rebase and retry.
+          for i in 1 2 3 4 5; do
+            git push origin gh-pages && exit 0
+            git pull --rebase origin gh-pages
+            sleep $((i * 3))
+          done
+          echo "could not push to gh-pages after 5 attempts" >&2
+          exit 1
+      - name: Verify the live site serves this build
+        run: |
+          want=$(sha256sum dist/index.html | cut -d' ' -f1)
+          url="https://jakobbullinger.github.io/solar-system/"
+          for i in $(seq 1 40); do
+            got=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1) || got="fetch-failed"
+            if [ "$got" = "$want" ]; then
+              echo "live site matches this build ($want)"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "live site never served this build within ~7 min" >&2
+          echo "  wanted $want" >&2
+          echo "  last   $got" >&2
+          echo "check the repo's Pages source: must be branch gh-pages, path /" >&2
+          exit 1

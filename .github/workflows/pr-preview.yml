@@ -1,0 +1,123 @@
+name: PR Preview
+
+# Every same-repo PR gets a live, playable build of its app at
+#   https://jakobbullinger.github.io/solar-system/previews/pr-<n>/
+# The build is the one self-contained dist/index.html (built from the PR's
+# merge commit, i.e. the feature as it would land on main), parked on the
+# gh-pages branch that Pages serves; a sticky bot comment carries the link
+# and is edited in place on every push — never spammed. Closing the PR
+# (merged or not) deletes the preview directory and marks the comment.
+#
+# Fork PRs are skipped on purpose: all lanes are same-repo branches, and the
+# plain pull_request trigger (never pull_request_target) keeps the write
+# token away from untrusted workflow code.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One run at a time per PR, latest push wins (a close cancels an in-flight
+# deploy of the same PR before cleanup runs). Cross-PR races on the shared
+# gh-pages branch are safe: writers touch disjoint paths and every push
+# goes through a rebase-and-retry loop.
+concurrency:
+  group: pr-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+env:
+  PREVIEW_DIR: previews/pr-${{ github.event.number }}
+  PREVIEW_URL: https://jakobbullinger.github.io/solar-system/previews/pr-${{ github.event.number }}/
+  MARKER: "<!-- orrery-pr-preview -->"
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build
+        run: node build.js
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+      - name: Publish preview to gh-pages
+        run: |
+          mkdir -p "site/${PREVIEW_DIR}"
+          cp dist/index.html "site/${PREVIEW_DIR}/index.html"
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${PREVIEW_DIR}"
+          git commit -m "preview: pr-${{ github.event.number }} @ ${{ github.event.pull_request.head.sha }}" \
+            || { echo "preview already current"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git push origin gh-pages && exit 0
+            git pull --rebase origin gh-pages
+            sleep $((i * 3))
+          done
+          echo "could not push to gh-pages after 5 attempts" >&2
+          exit 1
+      - name: Upsert the sticky preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="$(printf '%s\n' \
+            "$MARKER" \
+            "**Live preview:** $PREVIEW_URL" \
+            "" \
+            "Built from \`${{ github.event.pull_request.head.sha }}\` (this PR merged into its base)." \
+            " Updates on every push; removed when the PR closes.")"
+          cid=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.number }}/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n1)
+          if [ -n "$cid" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${cid}" -f body="$body" > /dev/null
+            echo "updated comment ${cid}"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.number }}/comments" -f body="$body" > /dev/null
+            echo "created comment"
+          fi
+
+  cleanup:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+      - name: Remove the preview directory
+        run: |
+          if [ ! -d "${PREVIEW_DIR}" ]; then
+            echo "no preview to remove"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -rq "${PREVIEW_DIR}"
+          git commit -m "preview: remove pr-${{ github.event.number }} (closed)"
+          for i in 1 2 3 4 5; do
+            git push origin gh-pages && exit 0
+            git pull --rebase origin gh-pages
+            sleep $((i * 3))
+          done
+          echo "could not push to gh-pages after 5 attempts" >&2
+          exit 1
+      - name: Mark the sticky comment as removed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cid=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.number }}/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n1)
+          [ -n "$cid" ] || { echo "no sticky comment to update"; exit 0; }
+          body="$(printf '%s\n' \
+            "$MARKER" \
+            "~~Live preview~~ — the PR closed and its preview was removed.")"
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${cid}" -f body="$body" > /dev/null
+          echo "updated comment ${cid}"

@@ -30,14 +30,17 @@ mission pars/difficulty (user: "later").
   station-keeping, and asteroid deflection. Mostly game design; the pieces
   exist. Needs human playtest feedback on pars/difficulty first.
 
-## Hosting arc (learning ladder; step 1 done 2026-07-07)
+## Hosting arc (learning ladder; steps 1+3 done 2026-07-07)
 
 1. ✅ Public repo + GitHub Pages: `.github/workflows/deploy.yml` ships
    `dist/index.html` to https://jakobbullinger.github.io/solar-system/ on
    every push to main (CI verifies, Deploy ships).
 2. Custom domain: DNS CNAME → Pages, auto-HTTPS. Learn: DNS, certificates.
-3. PR preview deployments (per-PR live URLs for reviewing features by
-   playing them). Learn: ephemeral environments.
+3. ✅ PR preview deployments: Pages serves the `gh-pages` branch — Deploy
+   owns the root, `pr-preview.yml` parks each same-repo PR's build at
+   `previews/pr-<n>/` with a sticky auto-comment, deleted on close.
+   Learned: ephemeral environments, artifact- vs branch-mode Pages,
+   shared-branch write races (rebase-retry), sticky-comment upsert.
 4. The backend moment — challenge-link leaderboards need the first
    server-side state (tiny API + DB; app stays offline-capable, leaderboard
    is optional enhancement). Learn: servers, persistence, auth.
