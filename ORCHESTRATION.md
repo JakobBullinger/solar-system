@@ -132,6 +132,13 @@ accidentally verifying the forged-link guard too.
   before designing goals. Both agents found the textbook answer wrong for
   our integrator and designed honestly around measurements. Put "measure
   first" in any brief whose win conditions depend on close-encounter physics.
+- **Hand-resolved CSS merges can silently swallow rules.** A marker-strip
+  resolution spliced one block into the middle of a rule; braces stayed
+  balanced file-wide, so the sheet parsed — but CSS Nesting made ~300 lines
+  of rules unreachable (unstyled Mars drawer, shipped, user-reported; PR #5).
+  Rule: after any hand resolution in app.css, screenshot the FEATURE AREAS
+  both sides own, and prefer computed-style e2e assertions over
+  presence-in-sheet checks — only computed styles reveal swallowed rules.
 - **The knowledge base compounds.** Wave-2 briefs were a third the length of
   wave-1's because CLAUDE.md + skills + this file carry the conventions; the
   level-19 agent fact-checked and corrected its own brief against the code.
