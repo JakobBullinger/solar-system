@@ -6,6 +6,7 @@
     "build": "node build.js",
     "dev": "node serve.js",
     "test": "node test/run.js",
+    "fleet": "node tools/fleet.js",
     "e2e": "playwright test --config tools/e2e/playwright.config.js"
   },
   "devDependencies": {
