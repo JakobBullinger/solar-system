@@ -23,6 +23,7 @@ const MODULES = [
   'src/physics/nbody.js',
   'src/physics/lambert.js',
   'src/physics/lagrange.js',
+  'src/scene/camerapath.js',
   'src/scene/textures.js',
   'src/scene/shaders.js',
   'src/scene/environment.js',

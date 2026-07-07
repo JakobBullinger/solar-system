@@ -805,6 +805,7 @@ ORRERY.Cosmos = (function () {
     captureOrrery();
     ORRERY.Labels.setVisible(false);
     ORRERY.Panel.close();
+    ORRERY.CameraPath.cancel();   // the zoom freezes the camera: no flight may keep flying
     if (ctx.onEnter) ctx.onEnter();
     group.visible = true;
     fixed.visible = true;
@@ -822,10 +823,16 @@ ORRERY.Cosmos = (function () {
     ORRERY.Labels.setVisible(ctx.orrery.labelsOn());
     ctx.controls.enableZoom = savedCtrl.zoom;
     ctx.controls.enablePan = savedCtrl.pan;
+    // Restore the camera just inside max zoom along its current bearing —
+    // an instant CameraPath flight: same snap as ever, and any stale flight
+    // is replaced atomically before a follow-up focus() takes over.
     var dir = ctx.camera.position.clone();
     if (dir.lengthSq() < 1) dir.set(0, 0.45, 0.89);
     dir.normalize();
-    ctx.camera.position.copy(dir.multiplyScalar(ctx.controls.maxDistance * 0.9));
+    ORRERY.CameraPath.begin({
+      to: dir.multiplyScalar(ctx.controls.maxDistance * 0.9),
+      instant: true
+    });
     group.visible = false;
     fixed.visible = false;
     dom.wrap.classList.remove('on');
