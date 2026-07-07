@@ -346,8 +346,8 @@ ORRERY.Cosmos = (function () {
     }
 
     // Hills cloud: flattened inner torus; outer cloud: isotropic sphere
-    st.group.add(shell(2600, 2000, 20000, 0.45, 0.5, 1.2));
-    st.group.add(shell(4800, 20000, 100000, 1.0, 0.42, 1.3));
+    st.group.add(shell(2600, 2000, 20000, 0.45, 0.7, 1.5));
+    st.group.add(shell(5600, 20000, 100000, 1.0, 0.6, 1.6));
     addLabel('Inner (Hills) cloud', new THREE.Vector3(14000, 2500, 0),
       [3.6, 4.1, 4.9, 5.4], { cls: 'tag' });
     addLabel('Outer Oort cloud — 1.6 light-years', new THREE.Vector3(0, 52000, 78000),
@@ -566,17 +566,26 @@ ORRERY.Cosmos = (function () {
         st.group.add(sub);
       } else {
         var blob = makeSprite(glowTex(), new THREE.Color(gx.color));
-        blob.material.opacity = 0.45 + gx.glow * 0.5;
+        blob.material.opacity = 0.65 + gx.glow * 0.3;
         reg(st, blob.material);
-        blob.scale.setScalar(sizeAU * 3.4);
+        blob.scale.setScalar(sizeAU * 4.5);
         blob.position.copy(posAU);
         st.group.add(blob);
       }
       addLabel(gx.name, posAU, WIN.lgroup, { data: gx, color: gx.color, dy: 15 });
     });
 
-    addLabel('Milky Way — home', galaxyBasis().gc.clone()
-      .multiplyScalar(C.GALACTIC.sunToCenterLy * C.LY_AU),
+    // The Milky Way's own far-field glow: its particle disc goes subpixel
+    // out here, so give home a presence to match its neighbours.
+    var mwPos = galaxyBasis().gc.clone()
+      .multiplyScalar(ORRERY.COSMOS.GALACTIC.sunToCenterLy * C.LY_AU);
+    var mwGlow = makeSprite(glowTex(), 0xEFE2C4);
+    mwGlow.material.opacity = 0.95;
+    reg(st, mwGlow.material);
+    mwGlow.scale.setScalar(C.GALACTIC.discRadiusLy * C.LY_AU * 3.2);
+    mwGlow.position.copy(mwPos);
+    st.group.add(mwGlow);
+    addLabel('Milky Way — home', mwPos,
       [10.35, 10.7, 99, 99], { data: C.MILKY_WAY, color: '#F2A63C', dy: 18 });
   }
 
@@ -933,6 +942,7 @@ ORRERY.Cosmos = (function () {
       L = targetL;                          // debug/headless: jump instantly
     },
     getL: function () { return L; },
+    getTargetL: function () { return targetL; },
     get active() { return active; }
   };
 })();
