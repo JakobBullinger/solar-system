@@ -140,6 +140,21 @@ accidentally verifying the forged-link guard too.
   Rule: after any hand resolution in app.css, screenshot the FEATURE AREAS
   both sides own, and prefer computed-style e2e assertions over
   presence-in-sheet checks — only computed styles reveal swallowed rules.
+- **Lanes can run as background subagents (wave 5).** When Terminal windows
+  can't be launched (macOS blocks `.command` files spawned from a sandboxed
+  session), the orchestrator runs each lane as a background subagent pointed
+  at the worktree + `.agent-brief.md`. Everything else is identical (status
+  files, inbox, final five acts, PR). Caveats: subagents stop when their
+  own background jobs (e2e runs, CI watches) finish — the orchestrator
+  resumes them with the result; fleet.js session-telemetry columns don't see
+  subagent transcripts (status lines + PR states still work).
+- **The e2e CI gate caught a real flake on its first day.** PR #10's
+  duplicate runs split green/red on the same commit: a mostly-black wide
+  screenshot sat at 1.97% lit pixels vs the 2% threshold, timing- and
+  clock-dependent (unpinned `Date.now()` sim clock). Fix pattern: pin the
+  jd, frame reliably-lit content, extra rAFs before shooting — never weaken
+  `check-screenshot.js`. Screenshot specs should pin their clock from the
+  start.
 - **The knowledge base compounds.** Wave-2 briefs were a third the length of
   wave-1's because CLAUDE.md + skills + this file carry the conventions; the
   level-19 agent fact-checked and corrected its own brief against the code.
