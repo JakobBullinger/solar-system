@@ -5,16 +5,19 @@ description: Rebuild the orrery and redeploy dist/index.html to the hosted claud
 
 # Deploy
 
-Deploy only from `main`, only after verification — never from a feature
-branch/worktree (the artifact is a single URL; deploying mid-feature flip-flops
-the hosted version).
+Since 2026-07-07 the PRIMARY deploy is automatic: every push to `main` ships
+`dist/index.html` to https://jakobbullinger.github.io/solar-system/ via
+`.github/workflows/deploy.yml` (verify with `gh run list --workflow=deploy.yml`).
+So "deploying" is: get verified work onto main and push.
 
 1. Confirm on main and clean: `git status -sb`.
-2. `node build.js` — must exit clean.
+2. `node build.js` + `npm test` — must be clean/green.
 3. Run `/headless-check` if the change wasn't already verified post-merge.
-4. Redeploy `dist/index.html` to the existing hosted artifact URL — it's in the
-   README's "Running it" table. Same URL = redeploy; a new URL is wrong.
-5. Confirm the README Log table has an entry for what shipped; push main.
+4. Confirm the README Log table has an entry for what shipped; push main.
+5. Check the Deploy workflow succeeded; spot-check the live URL.
+6. OPTIONAL mirror: redeploy `dist/index.html` to the claude.ai artifact URL in
+   the README's "Running it" table (same URL = redeploy) — keeps the private
+   mirror current, but the Pages site is canonical.
 
 The hosted artifact is private to the claude.ai account and shareable from
 there. `dist/index.html` is fully self-contained, so the file itself can also
