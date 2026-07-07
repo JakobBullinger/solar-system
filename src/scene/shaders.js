@@ -90,6 +90,18 @@ ORRERY.Shaders = (function () {
     '  vec3 col = mix(nightCol, dayCol, dayT);',
     '',
     '  vec3 vd = normalize(cameraPosition - vWorldPos);',
+    // Ocean sun-glint — gated on hasNight (only Earth ever gets a night
+    // map), so this never touches the other planets' materials. The ocean
+    // mask is read straight off the day texture's real coastlines (water
+    // is reliably blue-dominant vs. any land/ice tint textures.js paints —
+    // see geodata.js) rather than a second texture.
+    '  if (hasNight > 0.5) {',
+    '    float ocean = step(tex.r * 1.3, tex.b) * step(tex.g * 1.05, tex.b);',
+    '    vec3 halfV = normalize(sunDir + vd);',
+    '    float spec = pow(max(dot(n, halfV), 0.0), 140.0);',
+    '    col += vec3(1.0, 0.98, 0.9) * spec * ocean * lit * 2.4 * shade;',
+    '  }',
+    '',
     '  float fr = pow(1.0 - max(dot(vd, n), 0.0), 2.4);',
     '  col += atmoColor * fr * atmoI * (0.22 + 0.78 * dayT);',
     '',
