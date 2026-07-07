@@ -417,6 +417,11 @@ ORRERY.NBody = (function () {
                                  // `throttled` tells the sandbox to slow the clock
   var AU_KM = 1.495978707e8;
 
+  // Promoted-only masses: bodies the rails regime treats as massless
+  // (initSources/RATIOS are untouched — rails stays bit-identical) but that
+  // must still leave their rails honestly once the system is promoted.
+  var EXTRA_RATIOS = { pluto: 1.36e8 };   // M_sun / (Pluto + Charon)
+
   var promoted = null;           // { bodies: [sun, planets..., massive...] }
   var massive = [];              // the user-launched massive subset
   var events = [];               // human-readable regime events for the HUD
@@ -440,13 +445,14 @@ ORRERY.NBody = (function () {
     };
     var bodies = [sun];
     ORRERY.DATA.PLANETS.forEach(function (p) {
-      if (!RATIOS[p.key]) return;
+      var ratio = RATIOS[p.key] || EXTRA_RATIOS[p.key];
+      if (!ratio) return;
       var h0 = ORRERY.Kepler.heliocentric(p.el, jd);
       var h1 = ORRERY.Kepler.heliocentric(p.el, jd - 0.5);
       var h2 = ORRERY.Kepler.heliocentric(p.el, jd + 0.5);
       bodies.push({
         key: p.key, label: p.name, planet: true,
-        mu: MU / RATIOS[p.key], radius: p.radiusKm / AU_KM,
+        mu: MU / ratio, radius: p.radiusKm / AU_KM,
         pos: { x: h0.x, y: h0.y, z: h0.z },
         vel: { x: h2.x - h1.x, y: h2.y - h1.y, z: h2.z - h1.z },
         acc: { x: 0, y: 0, z: 0 }, ox: 0, oy: 0, oz: 0,
@@ -503,7 +509,9 @@ ORRERY.NBody = (function () {
    * the system on first use. pos/vel arrive heliocentric like every launch.
    */
   function addMassive(pos, vel, opts) {
-    promote(ORRERY.TimeBar.jd);
+    // opts.jd: promote at an explicit epoch (scenarios that time-travel set
+    // the clock and promote at the destination while the ease is in flight)
+    promote(opts.jd !== undefined ? opts.jd : ORRERY.TimeBar.jd);
     var sun = promoted.bodies[0];
     var b = {
       key: 'massive' + (mid++), label: opts.label || 'massive body',
@@ -558,6 +566,18 @@ ORRERY.NBody = (function () {
       out.x = p.pos.x - s.pos.x; out.y = p.pos.y - s.pos.y; out.z = p.pos.z - s.pos.z;
     } else {
       out.x = p.pos.x; out.y = p.pos.y; out.z = p.pos.z;
+    }
+    return out;
+  }
+
+  /** Heliocentric velocity — the permalink serializes frame-independent state. */
+  function helioVelOf(p, out) {
+    out = out || { x: 0, y: 0, z: 0 };
+    if (promoted) {
+      var s = promoted.bodies[0];
+      out.x = p.vel.x - s.vel.x; out.y = p.vel.y - s.vel.y; out.z = p.vel.z - s.vel.z;
+    } else {
+      out.x = p.vel.x; out.y = p.vel.y; out.z = p.vel.z;
     }
     return out;
   }
@@ -928,6 +948,7 @@ ORRERY.NBody = (function () {
     addMassive: addMassive,
     restore: restore,
     helioOf: helioOf,
+    helioVelOf: helioVelOf,
     planetHelioAU: planetHelioAU,
     predictApproach: predictApproach,
     massive: massive,
