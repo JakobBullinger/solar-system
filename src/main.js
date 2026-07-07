@@ -114,6 +114,7 @@
   });
   ORRERY.Missions.init({ scene: scene, camera: camera, canvas: canvas, controls: controls });
   ORRERY.Porkchop.init();
+  ORRERY.MarsPlanner.init({ scene: scene });
   ORRERY.Tour.init({
     registry: registry,
     focus: focus,

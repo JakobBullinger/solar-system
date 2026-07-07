@@ -1408,3 +1408,217 @@ body.touring .porkchop { display: none; }
 @media (max-width: 720px) {
   .porkchop { width: 100vw; border-right: none; }
 }
+
+/* ---- Mars Mission Planner ----------------------------------------------------- */
+.marsplan {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 21;
+  width: min(480px, 96vw);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: linear-gradient(160deg, rgba(20, 14, 14, 0.94), rgba(8, 6, 10, 0.94));
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  transform: translateX(-102%);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.marsplan.open { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .marsplan { transition: none; }
+}
+.marsplan header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 26px 22px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.marsplan h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.marsplan header div { flex: 1; }
+#mp-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+#mp-close {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+#mp-close:hover { color: var(--text); }
+
+.mp-timeline {
+  position: relative;
+  padding: 26px 18px 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.mp-years {
+  position: absolute;
+  top: 6px;
+  left: 18px;
+  right: 18px;
+  height: 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.mp-years span { position: absolute; transform: translateX(-50%); }
+.mp-row {
+  display: block;
+  width: 100%;
+  padding: 5px 4px 7px;
+  text-align: left;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.mp-row:hover { background: rgba(255, 255, 255, 0.04); }
+.mp-row.active { background: rgba(255, 133, 133, 0.08); }
+.mp-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
+}
+.mp-row-head strong { color: var(--text); font-weight: 600; }
+.mp-row-head em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.mp-row.asp .mp-row-head strong { color: var(--muted); }
+.mp-track {
+  position: relative;
+  display: block;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.045);
+}
+.mp-seg {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+.mp-seg.loiter { opacity: 0.3; }
+.mp-seg.ret {
+  top: 3px;
+  bottom: 3px;
+  opacity: 0.25;
+}
+.mp-row.asp .mp-seg {
+  opacity: 0.6;
+  background: repeating-linear-gradient(90deg,
+    currentColor 0 5px, transparent 5px 9px) !important;
+  color: #c9a8ff;
+}
+
+.mp-dossier { padding: 16px 22px 6px; }
+.mp-eyebrow {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mp-asp { color: #c9a8ff; font-weight: 600; }
+.mp-dossier h4 {
+  margin: 4px 0 8px;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 21px;
+}
+.mp-dossier > p {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.mp-stats { margin-top: 12px; }
+.mp-stats > div {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  border-top: 1px solid var(--line);
+}
+.mp-stats > div span:first-child {
+  flex: 0 0 88px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: 1px;
+}
+.mp-actions {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+.mp-actions button, .mp-flight button {
+  padding: 6px 13px;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mp-actions button:hover, .mp-flight button:hover {
+  border-color: rgba(255, 133, 133, 0.5);
+  background: rgba(255, 133, 133, 0.08);
+}
+.mp-flight {
+  min-height: 20px;
+  padding: 6px 0 10px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #8ce8dd;
+}
+.mp-flight button { margin-left: 8px; }
+.mp-note {
+  margin-top: auto;
+  padding: 12px 22px 20px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.pc-mars-link {
+  margin: 0 22px 8px;
+  padding: 5px 0;
+  text-align: left;
+  font-size: 11.5px;
+  color: #ff9d9d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 0.85;
+}
+.pc-mars-link:hover { opacity: 1; }
+body.touring .marsplan { display: none; }
+@media (max-width: 720px) {
+  .marsplan { width: 100vw; border-right: none; }
+}

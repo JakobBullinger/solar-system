@@ -266,7 +266,8 @@ ORRERY.Porkchop = (function () {
   function isOpen() { return els.root.classList.contains('open'); }
 
   function open() {
-    ORRERY.AlmanacUI.close();        // the two left drawers would overlap
+    ORRERY.AlmanacUI.close();        // the left drawers would overlap
+    if (ORRERY.MarsPlanner) ORRERY.MarsPlanner.close();
     els.root.classList.add('open');
     els.root.setAttribute('aria-hidden', 'false');
     els.btn.setAttribute('aria-pressed', 'true');
@@ -288,6 +289,7 @@ ORRERY.Porkchop = (function () {
       b.classList.toggle('active', b.dataset.key === target.key);
     });
     hoverCell = null;
+    if (els.marsLink) els.marsLink.style.display = target.key === 'mars' ? '' : 'none';
     if (isOpen()) {
       var p = ensurePlot();
       els.range.textContent = '6 years of departures from ' + fmtDate(p.startJd);
@@ -334,6 +336,18 @@ ORRERY.Porkchop = (function () {
       paint();
       renderReadout();
     });
+
+    // Cross-link: Mars is the one target whose next windows are really booked
+    if (ORRERY.MarsPlanner) {
+      els.marsLink = document.createElement('button');
+      els.marsLink.className = 'pc-mars-link';
+      els.marsLink.textContent = 'Five real missions fly these windows — open the Mars planner ▸';
+      els.marsLink.addEventListener('click', function () {
+        close();
+        ORRERY.MarsPlanner.open();
+      });
+      els.readout.parentNode.insertBefore(els.marsLink, els.readout.nextSibling);
+    }
 
     els.canvas.addEventListener('pointermove', function (e) {
       var cell = cellAt(e);
