@@ -16,8 +16,12 @@
 #      test-results) as the debugging payload.
 name: CI
 
+# push is restricted to main so a PR branch push triggers exactly ONE run
+# (the pull_request one) instead of duplicating the whole matrix (~2x 3.5 min
+# of e2e per push). deploy.yml is already main-only.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
