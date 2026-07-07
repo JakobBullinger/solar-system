@@ -5,11 +5,17 @@ how we work is in ORCHESTRATION.md. Keep this file updated when plans change —
 it is the only place forward plans live *in the repo* (session memory mirrors
 it but is machine-local).
 
-## In flight
+## In flight (launched 2026-07-07, background-subagent lanes)
 
-(nothing — Level 20 What-If Machine and the header redesign both landed
-2026-07-07 via PRs #7/#8; see the README log. Level 21 is gated on human
-playtest feedback about mission pars/difficulty.)
+- **CI e2e gate** (`../solar-system-ci`, `feature/ci-e2e`): the full
+  Playwright suite as a CI job on PRs, with a proven-red teeth check.
+  Merges FIRST (small; then the Level 24 PR gets the new gate).
+- **Level 24 — Earth Orbit & Starlink** (`../solar-system-earth`,
+  `feature/earth-orbit`, port 4175): Earth-centered km/minutes scale regime
+  (cosmos.js as zoom-in template), structural Starlink shells with synthetic
+  catalog (no TLEs, zero network) + ISS/GEO anchors; ascent ride-along as
+  stretch. Level 21 Mission Control remains gated on human playtest feedback
+  about mission pars/difficulty.
 
 ## Next, in order
 
