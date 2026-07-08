@@ -52,10 +52,13 @@ Agent finish sequence — the FINAL FIVE ACTS, in order, none skippable:
 4. `git push -u origin feature/<name>` (your branch only — never main).
 5. `gh pr create --title "Level N: <feature>" --body "<handoff>"`.
 
-Prerequisites (already configured on this machine): `gh auth status` must
-show **JakobBullinger** as the active account (`gh auth switch -u
-JakobBullinger` if the work account is active); pushes ride the
-`github-personal` SSH alias regardless of `gh`.
+Prerequisites (already configured on this machine): for ANY `gh` write on
+this repo (pr create, api, repo edit), use **`tools/gh.sh`** instead of
+`gh` — it pins the call to the JakobBullinger identity via `GH_TOKEN`
+without touching gh's single active-account slot, which the user's work
+session (Cursor) owns and flips at will. Never run `gh auth switch`
+(2026-07-08: the switch wars are over). Reads on the public repo work from
+any account; pushes ride the `github-personal` SSH alias regardless of `gh`.
 
 The orchestrator's watcher polls `gh pr list --state open` (survives laptop
 sleep — PR state lives on GitHub, not in a suspended session) with a 30-min
