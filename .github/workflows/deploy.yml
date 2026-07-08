@@ -4,9 +4,10 @@ name: Deploy
 # The CI workflow verifies (build + tests + smoke); this one ships.
 #
 # Pages serves the gh-pages BRANCH (build_type=legacy), not an Actions
-# artifact: this job owns ONLY the root index.html, and pr-preview.yml parks
-# per-PR builds under previews/pr-<n>/ on the same branch — main's site and
-# previews coexist. This job must never touch previews/.
+# artifact: this job owns ONLY the root index.html + guide.html (the static
+# visitor guide from site/), and pr-preview.yml parks per-PR builds under
+# previews/pr-<n>/ on the same branch — main's site and previews coexist.
+# This job must never touch previews/.
 #
 # The final step polls the live URL until it serves the exact bytes just
 # built, so a green Deploy run MEANS the site updated — and the run goes red
@@ -40,14 +41,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: gh-pages
-          path: site
-      - name: Publish root index.html to gh-pages
+          # NOT "site": the repo's own site/ dir (guide.html source) must
+          # survive this second checkout.
+          path: ghpages
+      - name: Publish root index.html + guide.html to gh-pages
         run: |
-          cp dist/index.html site/index.html
-          cd site
+          cp dist/index.html ghpages/index.html
+          cp site/guide.html ghpages/guide.html
+          cd ghpages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
+          git add index.html guide.html
           git commit -m "deploy: main @ ${GITHUB_SHA}" || { echo "site already current"; exit 0; }
           # The gh-pages branch is shared with preview deploys; races resolve
           # cleanly because the writers touch disjoint paths (root vs
@@ -63,10 +67,12 @@ jobs:
         run: |
           want=$(sha256sum dist/index.html | cut -d' ' -f1)
           url="https://jakobbullinger.github.io/solar-system/"
+          wantGuide=$(sha256sum site/guide.html | cut -d' ' -f1)
           for i in $(seq 1 40); do
             got=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1) || got="fetch-failed"
-            if [ "$got" = "$want" ]; then
-              echo "live site matches this build ($want)"
+            gotGuide=$(curl -fsSL "${url}guide.html" | sha256sum | cut -d' ' -f1) || gotGuide="fetch-failed"
+            if [ "$got" = "$want" ] && [ "$gotGuide" = "$wantGuide" ]; then
+              echo "live site + guide match this build ($want / $wantGuide)"
               exit 0
             fi
             sleep 10
