@@ -615,8 +615,17 @@ ORRERY.EarthOrbit = (function () {
       'synthetic catalog · with the ISS, the GEO ring and the Moon for scale, plus ' +
       'the GPS/Molniya/sun-sync/GEO-slot orbital zoo below');
 
-    // Clock + rate control (the mode's own time feel — minutes, not days)
+    // Clock + rate control (the mode's own time feel — minutes, not days).
+    // The bottom-center chrome is ONE flex column (hint → clock → rate pills
+    // → the ascent ride's launch button, mounted here by buildAll): every
+    // absolutely-anchored sibling in this band eventually collided with
+    // another lane's element (launch button on the pills, then the pills on
+    // the hint), so the column owns the stacking and no offsets are tuned.
     dom.clockWrap = el('div', 'eo-clock', dom.wrap);
+    dom.hint = el('div', 'eo-hint', dom.clockWrap,
+      window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+        ? 'drag to orbit · pinch from the cloud tops to the Moon · ✕ returns to the solar system'
+        : 'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
     dom.clock = el('span', 'eo-clock-txt', dom.clockWrap);
     dom.clock.id = 'eo-clock';
     dom.rates = el('div', 'eo-rates', dom.clockWrap);
@@ -671,11 +680,6 @@ ORRERY.EarthOrbit = (function () {
     var ruler = el('div', 'eo-ruler', dom.wrap);
     dom.rulerBar = el('div', 'eo-ruler-bar', ruler);
     dom.rulerTxt = el('span', 'eo-ruler-txt', ruler);
-
-    dom.hint = el('div', 'eo-hint', dom.wrap,
-      window.matchMedia && window.matchMedia('(pointer: coarse)').matches
-        ? 'drag to orbit · pinch from the cloud tops to the Moon · ✕ returns to the solar system'
-        : 'drag to orbit · scroll from the cloud tops to the Moon · <kbd>esc</kbd> returns to the solar system');
 
     dom.exit = el('button', 'eo-exit', dom.wrap, '✕ Solar system');
     dom.exit.id = 'eo-exit';
@@ -825,7 +829,11 @@ ORRERY.EarthOrbit = (function () {
     root.updateMatrixWorld(true);
 
     // Ascent ride-along (new module, additive hook only — see ascent.js header).
-    if (ORRERY.Ascent) ORRERY.Ascent.mount({ ctx: ctx, frame: frame, container: dom.wrap });
+    // The entry button mounts INTO the clock column (clock → rate pills →
+    // button) so it shares the bottom-center flex flow instead of being
+    // absolutely anchored at the same left:50%/bottom:26px as the pills —
+    // the two lanes' CSS appends collided there (user-reported overlap).
+    if (ORRERY.Ascent) ORRERY.Ascent.mount({ ctx: ctx, frame: frame, container: dom.clockWrap });
   }
 
   // --- Enter / exit ------------------------------------------------------------------------------
