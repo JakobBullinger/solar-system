@@ -148,8 +148,8 @@ ORRERY.Ascent = (function () {
       { t: P.missionDurationSeconds, title: 'Circularization', flare: true,
           body: fmt(m.circularization.dv * 1000, 0) + ' m/s burn at apogee closes the orbit: 420 km, ' +
           fmt(P.vCirc, 2) + ' km/s — the same speed the ISS itself holds.' },
-      { t: P.missionDurationSeconds + 3, title: 'In orbit', body: 'Alongside the ISS, ' +
-          'same plane, closing slowly — a kinematic finish, not a docking.' }
+      { t: P.missionDurationSeconds + 3, title: 'In orbit', body: 'Alongside the ISS — same ' +
+          'plane, ~180 km apart, drifting slowly. A co-orbit, honestly not a docking.' }
     ];
   }
 
