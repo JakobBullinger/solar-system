@@ -1185,6 +1185,11 @@ body.touring .scale-note { display: none; }
   transition: opacity 0.4s, transform 0.4s;
 }
 .tour.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+/* Subject dodge: when the tracked spectacle (replay spacecraft, framed body)
+   projects into the card's footprint, tour.js sets .dodge + --tour-dodge and
+   the card slides to the top of the screen — same card, out of the way. The
+   existing .tour transition animates the ride up and back. */
+.tour.show.dodge { transform: translateX(-50%) translateY(var(--tour-dodge, 0px)); }
 
 .tour-card {
   position: relative;
