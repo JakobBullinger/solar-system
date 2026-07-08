@@ -681,7 +681,7 @@ ORRERY.EarthOrbit = (function () {
     dom.exit.id = 'eo-exit';
     dom.exit.addEventListener('click', exit);
 
-    dom.labelLayer = el('div', 'eo-labels', document.body);
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body); // addLabel may have made it
 
     dom.card = el('aside', 'eo-card', document.body);
     dom.card.id = 'eo-card';
@@ -701,6 +701,14 @@ ORRERY.EarthOrbit = (function () {
   }
 
   function addLabel(text, posFn, data, color) {
+    // Lazy-create the layer: addLabel must never fall back to document.body
+    // (el() does when its parent is undefined). Unclipped body-level labels
+    // escape the layer's overflow:hidden, and their per-frame transforms
+    // make mobile Chrome ratchet the LAYOUT viewport up to 4× the device
+    // width — sliding the fixed ✕-exit off the visual viewport and breaking
+    // the phone exit tap (level-29 lesson: buildGeoSlots ran before
+    // buildDom, so its 7 GEO-slot labels landed on body).
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body);
     var e = el('button', 'eo-label', dom.labelLayer, text);
     e.style.setProperty('--dot', color);
     var it = { el: e, posFn: posFn, data: data };
