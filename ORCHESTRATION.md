@@ -147,6 +147,14 @@ accidentally verifying the forged-link guard too.
   Rule: after any hand resolution in app.css, screenshot the FEATURE AREAS
   both sides own, and prefer computed-style e2e assertions over
   presence-in-sheet checks — only computed styles reveal swallowed rules.
+- **Stalled/killed subagents recover in tiers (wave 7 overnight sleep).**
+  Try SendMessage-resume first (works even on failed agents if the
+  transcript survived — full context retained); if the transcript is gone,
+  a takeover agent works from `.agent-status.md` + committed code (and
+  should re-verify inherited theories — two takeovers found the dead
+  agent's last hypothesis wrong); if an agent stalls repeatedly on the same
+  long-running step, the orchestrator finishes the mechanical last mile
+  (verify/push/CI-watch) by hand rather than burning resume cycles.
 - **Lanes can run as background subagents (wave 5).** When Terminal windows
   can't be launched (macOS blocks `.command` files spawned from a sandboxed
   session), the orchestrator runs each lane as a background subagent pointed
