@@ -748,8 +748,18 @@ ORRERY.EarthOrbit = (function () {
   }
 
   // --- Label projection ------------------------------------------------------------------
+  // Project, then declutter: GEO slots at nearby longitudes project onto the
+  // same pixels at shallow bearings — and the "GEO ring" anchor shares
+  // Meteosat-11's 0° slot exactly — so overlapping glyphs interleave into
+  // garbage. Greedy pass in insertion order (earlier label = higher
+  // priority): when a label's box would intersect an already-placed one it
+  // drops just below the blocker, keeping every label legible and clickable.
+  // Box sizes are measured once and cached (text and font never change), so
+  // the per-frame pass is pure arithmetic over ~10 visible labels — no
+  // layout reads in the steady state.
   function updateLabels(jd) {
     var cam = ctx.camera, w = window.innerWidth, h = window.innerHeight;
+    var placed = [];
     labels.forEach(function (it) {
       it.posFn(vTmp, jd);
       vTmp.project(cam);
@@ -758,8 +768,25 @@ ORRERY.EarthOrbit = (function () {
         return;
       }
       it.el.style.display = '';
-      it.el.style.transform = 'translate(' + ((vTmp.x * 0.5 + 0.5) * w).toFixed(1) + 'px,' +
-        ((-vTmp.y * 0.5 + 0.5) * h - 14).toFixed(1) + 'px) translate(-50%, -100%)';
+      var sx = (vTmp.x * 0.5 + 0.5) * w;
+      var sy = (-vTmp.y * 0.5 + 0.5) * h - 14;   // box bottom (anchor is translate -100%)
+      if (!it.bw) { it.bw = it.el.offsetWidth; it.bh = it.el.offsetHeight; }
+      if (it.bw) {
+        var x0 = sx - it.bw / 2, hit = true, guard = 0;
+        while (hit && guard++ < 16) {
+          hit = false;
+          for (var i = 0; i < placed.length; i++) {
+            var p = placed[i];
+            if (x0 < p.r && x0 + it.bw > p.l && sy - it.bh < p.b && sy > p.t) {
+              sy = p.b + it.bh + 2;               // top lands 2px below the blocker
+              hit = true;
+            }
+          }
+        }
+        placed.push({ l: x0, t: sy - it.bh, r: x0 + it.bw, b: sy });
+      }
+      it.el.style.transform = 'translate(' + sx.toFixed(1) + 'px,' +
+        sy.toFixed(1) + 'px) translate(-50%, -100%)';
     });
   }
 

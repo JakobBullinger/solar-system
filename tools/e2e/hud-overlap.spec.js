@@ -13,6 +13,34 @@
 
 const { test, expect, gotoOrrery, screenshot } = require('./orrery');
 
+/** Snap the sim clock to an absolute jd and let one real frame apply it (zoo.spec.js pattern). */
+async function snapTo(page, jd) {
+  await page.evaluate((j) => {
+    const TB = window.ORRERY.TimeBar;
+    TB.playing = false;
+    TB.snapJd(j);
+  }, jd);
+  await page.evaluate(
+    () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)))
+  );
+}
+
+/** Frame the camera looking down at Earth from a fixed elevated bearing (zoo.spec.js pattern). */
+async function frameEarth(page, dist, elevate) {
+  await page.evaluate(([d, e]) => {
+    const O = window.ORRERY;
+    const earth = O.DATA.PLANETS.filter((p) => p.key === 'earth')[0];
+    const h = O.Kepler.heliocentric(earth.el, O.TimeBar.jd);
+    const to = new window.THREE.Vector3(-h.x, -h.z, h.y).normalize().multiplyScalar(d);
+    to.y += e;
+    O.CameraPath.begin({ to, instant: true });
+  }, [dist, elevate]);
+  await page.evaluate(
+    () => new Promise((res) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res))))
+  );
+}
+
 const VIEWPORTS = [
   { name: 'desktop', width: 1600, height: 1000 },
   { name: 'laptop', width: 1280, height: 720 },
@@ -84,5 +112,60 @@ VIEWPORTS.forEach((vp) => {
       // Touch-audit floor: the button stays finger-sized everywhere
       expect(m.launch.height, 'launch button touch height').toBeGreaterThanOrEqual(28);
     });
+  });
+});
+
+// --- Satellite label declutter (user-reported: GEO labels interleave) -------------
+//
+// The "GEO ring" anchor label is pinned at longitude 0° — exactly
+// Meteosat-11's slot — so the two labels project onto the SAME pixels at
+// every camera angle and their glyphs interleave into garbage. Nearby GEO
+// slots do the same at shallow bearings. Guard: at a pinned jd + camera, no
+// two VISIBLE labels in the eo label layer intersect, the always-coincident
+// pair is resolved (stacked apart or one hidden), and a label click still
+// opens its dossier.
+test.describe('earth-orbit satellite labels', () => {
+  test('visible labels never overlap; coincident GEO pair resolved; dossier click intact', async ({ page }) => {
+    await gotoOrrery(page);
+    await page.evaluate(() => document.getElementById('opt-earth').click());
+    await expect(page.locator('#eo-ui')).toHaveClass(/on/);
+
+    // Deterministic view: zoo.spec.js's pinned jd + the belt-framing camera.
+    await snapTo(page, 2461120.30);
+    await frameEarth(page, 88, 26);
+
+    const boxes = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.eo-label'))
+        .filter((el) => el.style.display !== 'none')
+        .map((el) => {
+          const b = el.getBoundingClientRect();
+          return { text: el.textContent, left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+        });
+    });
+    await screenshot(page, 'hud-overlap-eo-labels');
+
+    // The coincident pair must both be in play at this framing (visible or
+    // deliberately hidden by the declutter pass — never interleaved).
+    const meteosat = boxes.find((b) => b.text.indexOf('Meteosat') !== -1);
+    const geoRing = boxes.find((b) => b.text.indexOf('GEO ring') !== -1);
+    expect(meteosat, 'Meteosat-11 label visible at the pinned framing').toBeTruthy();
+    if (meteosat && geoRing) {
+      expect(overlapArea(meteosat, geoRing), 'coincident pair separated').toBe(0);
+    }
+
+    // Generic declutter contract: every visible label pair is disjoint.
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        expect(overlapArea(boxes[i], boxes[j]),
+          `"${boxes[i].text}" clear of "${boxes[j].text}"`).toBe(0);
+      }
+    }
+
+    // Labels stay clickable after the declutter pass: dossier opens.
+    await page.click('.eo-label:has-text("Meteosat-11")');
+    await expect(page.locator('#eo-card')).toHaveClass(/show/);
+    await expect(page.locator('#eo-card')).toContainText('Meteosat-11');
+    await page.click('.eo-card-close');
+    await expect(page.locator('#eo-card')).not.toHaveClass(/show/);
   });
 });
