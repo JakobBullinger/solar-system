@@ -47,6 +47,38 @@ const test = base.test.extend({
     },
     { auto: true },
   ],
+
+  /**
+   * Worker teardown insurance (e2e-speed lane, 2026-07-08). Chrome under
+   * SwiftShader can hang its own shutdown for minutes after WebGL-heavy
+   * pages (GPU-process teardown; heavy-tailed — pathological with plain
+   * `--use-angle=swiftshader`, still occasional with `swiftshader-webgl`
+   * once a worker has churned many WebGL contexts). Playwright then waits
+   * PWTEST_CHILD_PROCESS_TIMEOUT (5 min) per worker and reports "worker
+   * process did not exit … force-killed it", which sets hasWorkerErrors
+   * and FAILS an otherwise-green run. At worker teardown every per-test
+   * context is already closed and screenshots are on disk — a graceful
+   * browser shutdown flushes nothing we need — so this fixture SIGKILLs
+   * the worker's browser process first; the built-in browser fixture's
+   * close() then resolves in ~20 ms (measured; it does not throw on a
+   * dead browser). PID via CDP SystemInfo.getProcessInfo at worker start.
+   */
+  _reapBrowserOnTeardown: [
+    async ({ browser }, use) => {
+      let pid = null;
+      try {
+        const cdp = await browser.newBrowserCDPSession();
+        const info = await cdp.send('SystemInfo.getProcessInfo');
+        pid = (info.processInfo.find((p) => p.type === 'browser') || {}).id || null;
+        await cdp.detach();
+      } catch (e) { /* no PID → fall back to Playwright's own force-kill */ }
+      await use(undefined);
+      if (pid) {
+        try { process.kill(pid, 'SIGKILL'); } catch (e) { /* already gone */ }
+      }
+    },
+    { scope: 'worker', auto: true },
+  ],
 });
 
 /**

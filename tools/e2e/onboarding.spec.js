@@ -200,13 +200,22 @@ test('Grand Tour v2 walks all twelve stops, each self-contained', async ({ page 
 
 test('Esc during the hosted Earth-orbit stop unwinds everything in one keypress', async ({ page }) => {
   await gotoOrrery(page);
-  const pre = await page.evaluate(() => ({
-    jd: window.ORRERY.TimeBar.jd,
-    rate: window.ORRERY.TimeBar.rate,
-    playing: window.ORRERY.TimeBar.playing,
-    minD: 0,
-    ctl: [window.ORRERY.CameraPath ? 1 : 1],
-  }));
+  // Pause the visitor clock ATOMICALLY with the pre-capture: at the default
+  // 4 d/s a playing clock drifts ~4 sim-days per wall-second across the CDP
+  // roundtrips below, which made the old |post.jd − pre.jd| < 5 a wall-clock
+  // race under parallel workers (measured 6.05 at w=4). Paused, the restore
+  // is exact and the bound TIGHTENS to < 2; the playing-clock restore path
+  // (rate 4, playing) is covered by the twelve-stop finale test above.
+  const pre = await page.evaluate(() => {
+    window.ORRERY.TimeBar.playing = false;
+    return {
+      jd: window.ORRERY.TimeBar.jd,
+      rate: window.ORRERY.TimeBar.rate,
+      playing: window.ORRERY.TimeBar.playing,
+      minD: 0,
+      ctl: [window.ORRERY.CameraPath ? 1 : 1],
+    };
+  });
 
   await page.click('#opt-tour');
   await expect(page.locator('body')).toHaveClass(/touring/);
@@ -237,18 +246,33 @@ test('Esc during the hosted Earth-orbit stop unwinds everything in one keypress'
   expect(post.earthorbit).toBe(false);
   expect(post.rate).toBe(pre.rate);
   expect(post.playing).toBe(pre.playing);
-  expect(Math.abs(post.jd - pre.jd)).toBeLessThan(5);
-  // The v1 exit contract: the camera flies home (reduced motion = instant)
-  const d = Math.hypot(post.cam[0] - 0, post.cam[1] - 165, post.cam[2] - 330);
-  expect(d).toBeLessThan(2);
+  expect(Math.abs(post.jd - pre.jd)).toBeLessThan(2); // paused clock: exact restore
+  // The v1 exit contract: the camera flies home (reduced motion = instant).
+  // "Home" allows a small damped orbit-controls residual: stop 0's
+  // autoRotate accumulates a spherical delta that freezes while the hosted
+  // regime owns the camera and thaws after Esc, settling the pose a couple
+  // of units off HOME (dt-dependent — measured 2.25 under parallel
+  // contention). A FAILED restore parks hundreds of units away (or at
+  // Earth-orbit scene coords), so a 6-unit bound (1.6% of |HOME|) keeps
+  // the claim unambiguous; the condition-wait replaces a fixed-frame
+  // sample of a still-decaying pose.
+  await page.waitForFunction(() => {
+    const p = window.ORRERY.CameraPath.pose().position;
+    return Math.hypot(p[0] - 0, p[1] - 165, p[2] - 330) < 6;
+  }, null, { timeout: 10000 });
 });
 
 test('Esc during the cosmic-zoom finale stop comes all the way home', async ({ page }) => {
   await gotoOrrery(page);
-  const pre = await page.evaluate(() => ({
-    jd: window.ORRERY.TimeBar.jd,
-    rate: window.ORRERY.TimeBar.rate,
-  }));
+  // Same paused-clock capture as the Earth-orbit Esc test above (the old
+  // playing-clock capture made the jd bound a wall-clock race at 4 d/s).
+  const pre = await page.evaluate(() => {
+    window.ORRERY.TimeBar.playing = false;
+    return {
+      jd: window.ORRERY.TimeBar.jd,
+      rate: window.ORRERY.TimeBar.rate,
+    };
+  });
 
   await page.click('#opt-tour');
   await page.click('#tour-dots .tour-dot:nth-child(11)');
@@ -273,7 +297,7 @@ test('Esc during the cosmic-zoom finale stop comes all the way home', async ({ p
   expect(post.cosmos).toBe(false);
   expect(post.touring).toBe(false);
   expect(post.rate).toBe(pre.rate);
-  expect(Math.abs(post.jd - pre.jd)).toBeLessThan(5);
+  expect(Math.abs(post.jd - pre.jd)).toBeLessThan(2); // paused clock: exact restore
   const shot = await screenshot(page, 'onboarding-post-esc-home');
   assertSceneRendered(shot);
 });
@@ -288,7 +312,11 @@ test('first-visit offer shows once, sells the new tour, and stays dismissed', as
   await page.reload();
   await page.waitForFunction(() => window.ORRERY && window.ORRERY.Tour);
   await settleFrames(page, 4);
-  await page.waitForTimeout(1200); // past maybeOffer's deferral window
+  // maybeOffer runs synchronously during init (main.js calls it right after
+  // Permalink.init) — there is no deferral window. The module wait + 4 real
+  // frames above are already past the only point the offer could appear;
+  // 300 ms is pure margin against a future micro-deferral, not a 1.2 s guess.
+  await page.waitForTimeout(300);
   await expect(page.locator('#tour-offer')).not.toHaveClass(/show/);
 });
 

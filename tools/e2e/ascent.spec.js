@@ -44,14 +44,19 @@ async function rideTo(page, targetSeconds, dt) {
  * camera's exponential smoothing (~0.2 s time constant) has visibly
  * converged on the rocket before a screenshot — a few rAFs is enough for
  * pixel-truth, but a chase-cam screenshot wants the camera to have actually
- * arrived.
+ * arrived. Sized from measurement, not caution: Earth-orbit frames run
+ * ~16 ms under swiftshader-webgl locally and ~45 ms in full-contention
+ * worst cases (e2e-speed lane), so the 36-frame default is 0.6–1.6 s of
+ * real dt ≈ 3–8 time constants of the 0.2 s smoothing — the camera has
+ * converged to within a few percent of its remaining offset. (The original
+ * 60-frame default proved the same convergence several times over.)
  */
 async function settle(page, frames) {
   await page.evaluate((n) => new Promise((res) => {
     let i = 0;
     function step() { i++; if (i >= n) res(); else requestAnimationFrame(step); }
     requestAnimationFrame(step);
-  }), frames || 60);
+  }), frames || 36);
 }
 
 test('ride a launch: pad -> max-Q -> MECO -> SECO -> circularization -> parked alongside the ISS', async ({ page }) => {
@@ -144,8 +149,11 @@ test('ride a launch: pad -> max-Q -> MECO -> SECO -> circularization -> parked a
   // Parked stays parked under the REAL frame loop (TimeBar's own "real" rate
   // now drives it, per the module's design) — altitude/speed hold even as
   // more wall-clock time (and hence sim time) actually passes.
+  // 30 real frames (~0.5–1.4 s of wall clock at measured frame rates) —
+  // plenty of real frame-loop time to observe the clock advancing and the
+  // parked orbit holding (the previous 90 frames proved the same hold, 3× over).
   const jdAtPark = await page.evaluate(() => window.ORRERY.TimeBar.jd);
-  await settle(page, 90);
+  await settle(page, 30);
   const parked = await page.evaluate(() => window.ORRERY.Ascent.debug());
   const jdAfter = await page.evaluate(() => window.ORRERY.TimeBar.jd);
   expect(parked.phase).toBe('parked');
