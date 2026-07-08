@@ -146,7 +146,10 @@
       labelsOn: function () { return opts.labels; }
     },
     guards: function () {
-      return ORRERY.Ride.active || ORRERY.Tour.active ||
+      // Tour v2 exemption: a tour stop that declares it is hosting this
+      // mode may drive it; any other tour state still blocks it.
+      return ORRERY.Ride.active ||
+        (ORRERY.Tour.active && ORRERY.Tour.hosting !== 'cosmos') ||
         ORRERY.Sandbox.active || ORRERY.Missions.active || ORRERY.EarthOrbit.active;
     },
     onEnter: function () { follow = null; }   // cosmos cancels flights itself
@@ -164,7 +167,9 @@
       labelsOn: function () { return opts.labels; }
     },
     guards: function () {
-      return ORRERY.Ride.active || ORRERY.Tour.active ||
+      // Same tour-hosting exemption as the cosmic zoom (tour v2).
+      return ORRERY.Ride.active ||
+        (ORRERY.Tour.active && ORRERY.Tour.hosting !== 'earthorbit') ||
         ORRERY.Sandbox.active || ORRERY.Missions.active || ORRERY.Cosmos.active;
     },
     getFollow: function () { return follow; },
@@ -356,8 +361,12 @@
         group.visible = pv.alive !== false;
       } else {
         K.scenePosition(b.el, jd, group.position);
-        // Earth-orbit mode owns solids' visibility while active
-        if (!group.visible && !ORRERY.EarthOrbit.active) group.visible = true;
+        // Earth-orbit and cosmic-zoom modes own solids' visibility while
+        // active (found by the tour's zoom-out stop: this line was undoing
+        // the cosmos fade every frame, leaving planets adrift in the galaxy)
+        if (!group.visible && !ORRERY.EarthOrbit.active && !ORRERY.Cosmos.active) {
+          group.visible = true;
+        }
       }
 
       // Axial spin (rotationHours sign encodes retrograde)

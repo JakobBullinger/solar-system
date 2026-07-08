@@ -2719,3 +2719,13 @@ body.riding-ascent .asc-launch-btn { display: none; }
   /* Timebar scrubbing: a 16px hit strip is a fiddly finger target. */
   #tb-slider { height: 30px; }
 }
+
+/* ---- Visitor's guide link (onboarding lane) ----------------------------------
+   The Explore menu's one anchor among buttons: inherit the .mi look. */
+a.mi {
+  box-sizing: border-box;
+  text-decoration: none;
+  color: inherit;
+}
+a.mi-guide .mi-ico { color: #cdb8ff; }
+a.mi-guide .mi-body em { color: var(--muted); }
