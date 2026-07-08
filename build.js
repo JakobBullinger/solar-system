@@ -27,6 +27,7 @@ const MODULES = [
   'src/physics/nbody.js',
   'src/physics/lambert.js',
   'src/physics/lagrange.js',
+  'src/data/zoo.js', // Level 29: needs Kepler (elliptical Molniya reuse) + STARLINK's constants
   'src/scene/camerapath.js',
   'src/scene/trajanim.js',
   'src/scene/orbitflow.js',

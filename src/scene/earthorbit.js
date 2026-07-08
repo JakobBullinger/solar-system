@@ -33,6 +33,19 @@
  * while focused on Earth (the mirror of the cosmos wheel-out). Exit (Esc,
  * the HUD button, or wheeling out past the mode's max distance) restores
  * the heliocentric camera pose exactly via an instant CameraPath flight.
+ *
+ * Level 29 (Orbital Zoo) additions live here as CONTENT only — the family
+ * physics/catalogs are in `data/zoo.js`. GPS/MEO and the sun-synchronous
+ * shell reuse the exact same circular + J2 machinery as the Starlink
+ * shells above (`S.satPosKm`); Molniya is genuinely different (elliptical,
+ * propagated via `ORRERY.Kepler.heliocentric` at km scale) and gets its
+ * own render path. GEO gained named real slots (replacing the old 12
+ * schematic markers) plus a graveyard ring, and every zoo family dims
+ * while inside Earth's shadow cylinder (`Z.inShadow`). Selecting a family
+ * (legend or a 3D label) draws its ground track on the globe — baked once
+ * as Earth-fixed {lat,lon} pairs, then re-projected every tick through the
+ * current spin phase, so the track visually stays painted on the turning
+ * surface exactly like the GEO-hangs-still money shot generalizes.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -45,7 +58,7 @@ ORRERY.EarthOrbit = (function () {
   var MAX_D = 620;                // past the Moon (384.4 units)
   var ENTER_VIEW = { x: 0, y: 40, z: 105 };   // Earth + LEO swarm + GEO ring
 
-  var ctx = null, S = null, K = null;
+  var ctx = null, S = null, K = null, Z = null;
   var active = false, built = false;
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -54,12 +67,23 @@ ORRERY.EarthOrbit = (function () {
   var earthMesh = null, clouds = null, sunGlow = null, moonMesh = null;
   var shellsR = [];               // { shell, pts, attr }
   var issSprite = null, issShell = null;
-  var geoPts = null, geoAttr = null, geoShell = null;
+  var geoRing = null;             // the amber outline (unchanged, still "the GEO ring")
   var labels = [], dom = {}, cardLive = null;
   var saved = null;               // camera/controls/timebar snapshot
   var earthEl = null;
   var oversIn = 0, oversOut = 0, tAnim = 0;
   var sunDir = null, vTmp = null;
+  var sunDirEqKm = null;          // Earth→Sun unit vector, equatorial km frame (Z.inShadow input)
+
+  // --- Level 29: Orbital Zoo state ------------------------------------------------
+  var zooShellsR = [];            // { family, pts, attr, colorAttr, base } — GPS/sun-sync/graveyard
+  var molPts = null, molAttr = null, molColorAttr = null, molBase = null;
+  var molOrbitLines = [];
+  var geoSlots = [];              // { slot, sprite }
+  var graveyardRing = null;
+  var trackLine = null, trackAttr = null, trackLatLon = null;
+  var TRACK_STEPS = 220;
+  var TRACK_R = 6.40;             // scene units: just above the 6.371 surface, below the 6.448 cloud deck
 
   // Own minutes-scale rates (days per real second)
   var RATES = [
@@ -206,29 +230,19 @@ ORRERY.EarthOrbit = (function () {
     issSprite.scale.setScalar(1.6);
     frame.add(issSprite);
 
-    // GEO — the ring line plus 12 schematic marker satellites that rotate
-    // with the Earth (their mean motion IS the sidereal spin — the point).
-    geoShell = { altKm: S.GEO.altKm, incDeg: 0, planes: 1, perPlane: 12, f: 0 };
+    // GEO — the amber ring outline. The 12 schematic marker satellites this
+    // used to carry are now the real named slots (Level 29, buildGeoSlots).
     var rGeo = S.radiusKm(S.GEO.altKm) * KM;
     var ringPts = [];
     for (var i = 0; i <= 128; i++) {
       var a = (i / 128) * Math.PI * 2;
       ringPts.push(new THREE.Vector3(Math.cos(a) * rGeo, 0, Math.sin(a) * rGeo));
     }
-    var ring = new THREE.Line(
+    geoRing = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(ringPts),
       new THREE.LineBasicMaterial({ color: 0xF2A63C, transparent: true, opacity: 0.35 })
     );
-    frame.add(ring);
-    geoAttr = new THREE.BufferAttribute(new Float32Array(12 * 3), 3);
-    var geoGeo = new THREE.BufferGeometry();
-    geoGeo.setAttribute('position', geoAttr);
-    geoPts = new THREE.Points(geoGeo, new THREE.PointsMaterial({
-      color: 0xF2A63C, size: 3.2, sizeAttenuation: false,
-      transparent: true, opacity: 0.95, depthWrite: false
-    }));
-    geoPts.frustumCulled = false;
-    frame.add(geoPts);
+    frame.add(geoRing);
 
     // Moon — true distance and period, schematic phase (honestly labeled).
     moonMesh = new THREE.Mesh(
@@ -244,6 +258,145 @@ ORRERY.EarthOrbit = (function () {
     }));
     sunGlow.scale.setScalar(320);
     root.add(sunGlow);
+  }
+
+  // --- Level 29: Orbital Zoo scene content -----------------------------------------------
+  // GPS/MEO, sun-sync and the graveyard are circular Walker families exactly
+  // like the Starlink shells above — S.satPosKm is shape-generic, so they
+  // reuse it directly. Molniya is elliptical and gets its own points below.
+  // Every family here (plus the named GEO slots) dims per-vertex/per-sprite
+  // while inside Earth's shadow cylinder (Z.inShadow), tick()'s job.
+  function buildZooShell(family) {
+    var n = S.shellCount(family);
+    var attr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var colorAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', attr);
+    geo.setAttribute('color', colorAttr);
+    var mat = new THREE.PointsMaterial({
+      size: 2.4, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.9, depthWrite: false
+    });
+    var pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    frame.add(pts);
+    var base = new THREE.Color(family.color);
+    zooShellsR.push({ family: family, pts: pts, attr: attr, colorAttr: colorAttr, base: base });
+  }
+
+  function buildMolniya() {
+    var n = Z.MOLNIYA.planes * Z.MOLNIYA.perPlane;
+    molAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    molColorAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', molAttr);
+    geo.setAttribute('color', molColorAttr);
+    molPts = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: 3, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.95, depthWrite: false
+    }));
+    molPts.frustumCulled = false;
+    frame.add(molPts);
+    molBase = new THREE.Color(Z.MOLNIYA.color);
+
+    // Decorative orbit ellipses (one per plane) — static at epoch; the J2
+    // apsidal drift is ~0 by design and the node drift is too slow to
+    // matter visually, so redrawing every frame would be wasted work.
+    for (var p = 0; p < Z.MOLNIYA.planes; p++) {
+      var node0 = (p / Z.MOLNIYA.planes) * 360;
+      var shapePts = Z.orbitShapeKm(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg, Z.MOLNIYA.argPeriDeg, node0, 96)
+        .map(function (q) { return new THREE.Vector3(q.x * KM, q.z * KM, -q.y * KM); });
+      var line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(shapePts),
+        new THREE.LineBasicMaterial({ color: Z.MOLNIYA.color, transparent: true, opacity: 0.22 })
+      );
+      frame.add(line);
+      molOrbitLines.push(line);
+    }
+  }
+
+  function buildGeoSlots() {
+    Z.GEO_SLOTS.forEach(function (slot) {
+      var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: ORRERY.Textures.glowSprite('rgba(242,166,60,0.95)', 'rgba(242,166,60,0.28)'),
+        blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+      }));
+      sprite.scale.setScalar(2.0);
+      frame.add(sprite);
+      geoSlots.push({ slot: slot, sprite: sprite });
+      addLabel(slot.name, function (out, jd) {
+        eqToLocal(Z.geoSlotPosKm(slot.lonDeg, jd), out);
+        return frame.localToWorld(out);
+      }, function () { return geoSlotDossier(slot); }, '#F2A63C');
+    });
+
+    // Graveyard ring outline (schematic, ~300 km above GEO — IADC guideline)
+    var rGrave = S.radiusKm(Z.GRAVEYARD.altKm) * KM;
+    var pts = [];
+    for (var i = 0; i <= 96; i++) {
+      var a = (i / 96) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * rGrave, 0, Math.sin(a) * rGrave));
+    }
+    graveyardRing = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: Z.GRAVEYARD.color, transparent: true, opacity: 0.3 })
+    );
+    frame.add(graveyardRing);
+  }
+
+  function buildZooFamilies() {
+    buildZooShell(Z.GPS);
+    buildZooShell(Z.SUNSYNC);
+    buildZooShell(Z.GRAVEYARD);
+    buildMolniya();
+    buildGeoSlots();
+    buildTrackLine();
+  }
+
+  // --- Ground tracks (selectable orbit → path painted on the turning surface) -----------
+  function buildTrackLine() {
+    trackAttr = new THREE.BufferAttribute(new Float32Array((TRACK_STEPS + 1) * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', trackAttr);
+    geo.setDrawRange(0, 0);
+    trackLine = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0xFFFFFF, transparent: true, opacity: 0.85, depthWrite: false
+    }));
+    trackLine.frustumCulled = false;
+    frame.add(trackLine);
+  }
+
+  /** Select (or clear) the family whose ground track is currently painted. */
+  function setTrack(track) {
+    if (!track) {
+      trackLatLon = null;
+      trackLine.geometry.setDrawRange(0, 0);
+      return;
+    }
+    trackLine.material.color.set(track.color || '#FFFFFF');
+    trackLatLon = Z.groundTrack(track.posFn, ORRERY.TimeBar.jd, track.spanDays, TRACK_STEPS);
+    trackLine.geometry.setDrawRange(0, TRACK_STEPS + 1);
+  }
+
+  /** Re-project the baked {lat,lon} track through the CURRENT spin phase — this
+   *  is what keeps it painted on the turning surface (same trick as the
+   *  GEO-hangs-still math, generalized: an Earth-fixed shape rotates with
+   *  Earth for free as long as its inertial angle always adds the current
+   *  spin phase, exactly like `S.fixedLongitudeDeg` inverted). */
+  function updateTrack(jd) {
+    if (!trackLatLon) return;
+    var spin = S.earthSpinFraction(jd) * 360;
+    for (var i = 0; i < trackLatLon.length; i++) {
+      var pt = trackLatLon[i];
+      var latR = pt.lat * DEG, loni = (pt.lon + spin) * DEG;
+      var cl = Math.cos(latR);
+      // equatorial km → local scene (matches eqToLocal's axis mapping)
+      trackAttr.setXYZ(i,
+        TRACK_R * cl * Math.cos(loni),
+        TRACK_R * Math.sin(latR),
+        -TRACK_R * cl * Math.sin(loni));
+    }
+    trackAttr.needsUpdate = true;
   }
 
   // --- Dossiers ------------------------------------------------------------------------
@@ -292,9 +445,9 @@ ORRERY.EarthOrbit = (function () {
       type: '35,786 km above the equator',
       fact: 'At exactly this altitude the orbital period equals one sidereal day ' +
         '(23 h 56 m 04 s), so a satellite hangs motionless over one spot on the ' +
-        'spinning Earth. Watch: the amber markers turn WITH the surface while the ' +
-        'LEO swarm races past. The 12 markers are schematic — the real belt holds ' +
-        'hundreds of stations.',
+        'spinning Earth. Watch: the amber ring turns WITH the surface while the ' +
+        'LEO swarm races past. Real operators sitting in this ring — weather ' +
+        'birds, TV and comms satellites — are named individually below.',
       stats: [
         ['Altitude', '35,786 km'],
         ['Radius', fmtInt(S.radiusKm(S.GEO.altKm)) + ' km'],
@@ -317,6 +470,139 @@ ORRERY.EarthOrbit = (function () {
     };
   }
 
+  // --- Level 29: Orbital Zoo dossiers ---------------------------------------------------
+  var GPS_DOSSIER = null, SUNSYNC_DOSSIER = null, MOLNIYA_DOSSIER = null, GRAVEYARD_DOSSIER = null,
+    GEOSLOTS_DOSSIER = null;
+
+  function gpsTrackFn() {
+    var shell = Z.GPS;
+    return function (t) { return S.satPosKm(shell, 0, 0, t); };
+  }
+  function sunsyncTrackFn() {
+    var shell = Z.SUNSYNC;
+    return function (t) { return S.satPosKm(shell, 0, 0, t); };
+  }
+  function molniyaTrackFn() {
+    return function (t) { return Z.molniyaPosKm(0, 0, t); };
+  }
+  function issTrackFn() {
+    return function (t) { return S.satPosKm(issShell, 0, 0, t); };
+  }
+
+  function buildZooDossiers() {
+    GPS_DOSSIER = {
+      name: 'GPS · MEO',
+      color: Z.GPS.color,
+      type: Z.GPS.planes + ' planes × ' + Z.GPS.perPlane + ' — ' + fmtInt(Z.GPS.altKm) +
+        ' km · ' + Z.GPS.incDeg.toFixed(0) + '°',
+      fact: 'Semi-synchronous by design: 2 orbits take almost exactly one sidereal ' +
+        'day, so every satellite’s ground track very nearly repeats daily — a ' +
+        'predictable, plannable footprint is the whole point of a navigation ' +
+        'constellation (real GPS needs occasional station-keeping to hold the ' +
+        'repeat; this synthetic catalog does not drift).',
+      stats: [
+        ['Altitude', fmtInt(Z.GPS.altKm) + ' km'],
+        ['Inclination', Z.GPS.incDeg.toFixed(1) + '°'],
+        ['Orbital period', S.periodMin(Z.GPS.altKm).toFixed(2) + ' min'],
+        ['Speed', S.vCirc(Z.GPS.altKm).toFixed(2) + ' km/s'],
+        ['2 orbits vs 1 sidereal day', (2 * S.periodMin(Z.GPS.altKm)).toFixed(1) +
+          ' vs ' + (S.SIDEREAL_H * 60).toFixed(1) + ' min']
+      ],
+      track: { posFn: gpsTrackFn(), spanDays: 2 * S.periodMin(Z.GPS.altKm) / 1440, color: Z.GPS.color }
+    };
+    SUNSYNC_DOSSIER = {
+      name: 'Sun-synchronous',
+      color: Z.SUNSYNC.color,
+      type: '700 km · ' + Z.SUNSYNC.incDeg.toFixed(2) + '° — Earth-observation altitude',
+      fact: 'Retrograde and steep enough that its J2 node precession exactly ' +
+        'cancels the ~1°/day the Earth sweeps around the Sun — this family ' +
+        'crosses the equator at the same local solar time on every single orbit, ' +
+        'forever, which is why every optical imaging satellite (Landsat, ' +
+        'Sentinel-2, …) flies one.',
+      stats: [
+        ['Altitude', Z.SUNSYNC.altKm + ' km'],
+        ['Inclination', Z.SUNSYNC.incDeg.toFixed(2) + '°'],
+        ['Orbital period', S.periodMin(Z.SUNSYNC.altKm).toFixed(1) + ' min'],
+        ['Node drift (J2)', S.raanRateDegPerDay(Z.SUNSYNC.altKm, Z.SUNSYNC.incDeg).toFixed(4) + '°/day'],
+        ['Earth around the Sun', '0.9856°/day']
+      ],
+      track: { posFn: sunsyncTrackFn(), spanDays: S.periodMin(Z.SUNSYNC.altKm) / 1440 * 3, color: Z.SUNSYNC.color }
+    };
+    MOLNIYA_DOSSIER = {
+      name: 'Molniya',
+      color: Z.MOLNIYA.color,
+      type: 'e ' + Z.MOLNIYA.e.toFixed(2) + ' · ' + Z.MOLNIYA.incDeg.toFixed(1) +
+        '° · 12 h — the apogee-dwell orbit',
+      fact: '63.4° is the CRITICAL INCLINATION: at 5cos²i = 1 the J2 drift of the ' +
+        'argument of perigee is exactly zero (verified against the same J2 code ' +
+        'as the Starlink shells), so apogee keeps dwelling over the far north ' +
+        'orbit after orbit instead of drifting away. A geostationary bird can’t ' +
+        'reach these latitudes at all — this is how the USSR covered them before ' +
+        'GEO relay was practical from Siberian latitudes.',
+      stats: [
+        ['Perigee altitude', fmtInt(Z.MOLNIYA.a * (1 - Z.MOLNIYA.e) - S.RE) + ' km'],
+        ['Apogee altitude', fmtInt(Z.MOLNIYA.a * (1 + Z.MOLNIYA.e) - S.RE) + ' km'],
+        ['Period', (Z.MOLNIYA.periodMin / 60).toFixed(0) + ' h'],
+        ['Apsidal (ω) drift', Z.argPeriRateDegPerDay(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg).toFixed(5) + '°/day'],
+        ['Node (Ω) drift', Z.raanRateEccDegPerDay(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg).toFixed(3) + '°/day (not pinned)']
+      ],
+      track: { posFn: molniyaTrackFn(), spanDays: Z.MOLNIYA.periodMin / 1440, color: Z.MOLNIYA.color }
+    };
+    GRAVEYARD_DOSSIER = {
+      name: 'GEO graveyard',
+      color: Z.GRAVEYARD.color,
+      type: (Z.GRAVEYARD.altKm - S.GEO.altKm) + ' km above the operational ring',
+      fact: 'The IADC end-of-life guideline: raise a retiring GEO satellite at ' +
+        'least ~300 km above the operational belt before its last drop of fuel ' +
+        'runs out, keeping the working ring clear. These markers are schematic — ' +
+        'real graveyarded hardware is not individually catalogued here.',
+      stats: [
+        ['Altitude', fmtInt(Z.GRAVEYARD.altKm) + ' km'],
+        ['Margin above GEO', (Z.GRAVEYARD.altKm - S.GEO.altKm) + ' km'],
+        ['Orbital period', S.periodMin(Z.GRAVEYARD.altKm).toFixed(1) + ' min (vs GEO 1436.1)']
+      ]
+    };
+    GEOSLOTS_DOSSIER = {
+      name: 'Named GEO slots',
+      color: '#F2A63C',
+      type: Z.GEO_SLOTS.length + ' real operators, filed longitudes',
+      fact: 'Public longitude filings (approximate — GEO slots are periodically ' +
+        'renegotiated). Around the equinoxes, Earth’s shadow sweeps across the ' +
+        'ring near each satellite’s local midnight: GOES-19 (75.2°W) dims for ' +
+        'about 69 minutes overnight on 20–21 Mar 2026 — try that date. Away from ' +
+        'the equinox windows the Sun sits too far above or below the equatorial ' +
+        'plane for the shadow to reach this far out.',
+      stats: Z.GEO_SLOTS.map(function (s) {
+        return [s.name, (s.lonDeg >= 0 ? s.lonDeg.toFixed(1) + '°E' : (-s.lonDeg).toFixed(1) + '°W') + ' · ' + s.op];
+      })
+    };
+    ISS_DOSSIER.track = { posFn: issTrackFn(), spanDays: S.periodMin(S.ISS.altKm) / 1440 * 3.2, color: '#FFFFFF' };
+  }
+
+  function geoSlotDossier(slot) {
+    return {
+      name: slot.name,
+      color: '#F2A63C',
+      type: (slot.lonDeg >= 0 ? slot.lonDeg.toFixed(1) + '°E' : (-slot.lonDeg).toFixed(1) + '°W') +
+        ' · ' + slot.kind + ' · ' + slot.op,
+      fact: 'Geostationary: filed at a fixed longitude rather than a Walker slot ' +
+        '— its earth-fixed position does not move at all, only its position in ' +
+        'inertial space (it "hangs" only relative to the spinning surface).',
+      stats: [
+        ['Longitude', slot.lonDeg.toFixed(1) + '°'],
+        ['Operator', slot.op],
+        ['Kind', slot.kind],
+        ['Altitude', fmtInt(S.GEO.altKm) + ' km']
+      ],
+      liveFn: function (jd) {
+        var sun = Z.sunDirEquatorial(earthEl, jd);
+        var dark = Z.inShadow(Z.geoSlotPosKm(slot.lonDeg, jd), sun);
+        return '<div class="eo-stat"><span>Status</span><span>' +
+          (dark ? 'in Earth’s shadow' : 'sunlit') + '</span></div>';
+      }
+    };
+  }
+
   // --- DOM -----------------------------------------------------------------------------
   function buildDom() {
     dom.wrap = el('div', 'eo-ui', document.body);
@@ -326,7 +612,8 @@ ORRERY.EarthOrbit = (function () {
     el('h2', null, dom.caption, 'Earth Orbit');
     el('p', null, dom.caption,
       '4,408 Starlink satellites in their five licensed shells — real structure, ' +
-      'synthetic catalog · with the ISS, the GEO ring and the Moon for scale');
+      'synthetic catalog · with the ISS, the GEO ring and the Moon for scale, plus ' +
+      'the GPS/Molniya/sun-sync/GEO-slot orbital zoo below');
 
     // Clock + rate control (the mode's own time feel — minutes, not days)
     dom.clockWrap = el('div', 'eo-clock', dom.wrap);
@@ -364,6 +651,22 @@ ORRERY.EarthOrbit = (function () {
       b.addEventListener('click', function () { showCard(row[4]()); });
     });
 
+    // The Orbital Zoo (level 29): the reason each family's orbit is shaped
+    // the way it is, plus the named GEO slots + graveyard as one grouped row.
+    el('div', 'eo-legend-h', dom.legend, 'The orbital zoo');
+    [['gps', 'GPS · MEO', Z.GPS.color, '20,182 km · 55° · semi-sync', function () { return GPS_DOSSIER; }],
+     ['molniya', 'Molniya', Z.MOLNIYA.color, 'e 0.74 · 63.4° · 12 h', function () { return MOLNIYA_DOSSIER; }],
+     ['sunsync', 'Sun-synchronous', Z.SUNSYNC.color, '700 km · 98.2°', function () { return SUNSYNC_DOSSIER; }],
+     ['geoslots', 'Named GEO slots', '#F2A63C', Z.GEO_SLOTS.length + ' operators', function () { return GEOSLOTS_DOSSIER; }],
+     ['graveyard', 'GEO graveyard', Z.GRAVEYARD.color, '+300 km · disposal', function () { return GRAVEYARD_DOSSIER; }]
+    ].forEach(function (row) {
+      var b = el('button', 'eo-key', dom.legend,
+        '<span class="eo-dot" style="background:' + row[2] + '"></span>' +
+        '<strong>' + row[1] + '</strong><em>' + row[3] + '</em>');
+      b.dataset.eo = row[0];
+      b.addEventListener('click', function () { showCard(row[4]()); });
+    });
+
     // Ruler (nice-number km scale at the orbit distance)
     var ruler = el('div', 'eo-ruler', dom.wrap);
     dom.rulerBar = el('div', 'eo-ruler-bar', ruler);
@@ -378,7 +681,7 @@ ORRERY.EarthOrbit = (function () {
     dom.exit.id = 'eo-exit';
     dom.exit.addEventListener('click', exit);
 
-    dom.labelLayer = el('div', 'eo-labels', document.body);
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body); // addLabel may have made it
 
     dom.card = el('aside', 'eo-card', document.body);
     dom.card.id = 'eo-card';
@@ -398,6 +701,14 @@ ORRERY.EarthOrbit = (function () {
   }
 
   function addLabel(text, posFn, data, color) {
+    // Lazy-create the layer: addLabel must never fall back to document.body
+    // (el() does when its parent is undefined). Unclipped body-level labels
+    // escape the layer's overflow:hidden, and their per-frame transforms
+    // make mobile Chrome ratchet the LAYOUT viewport up to 4× the device
+    // width — sliding the fixed ✕-exit off the visual viewport and breaking
+    // the phone exit tap (level-29 lesson: buildGeoSlots ran before
+    // buildDom, so its 7 GEO-slot labels landed on body).
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body);
     var e = el('button', 'eo-label', dom.labelLayer, text);
     e.style.setProperty('--dot', color);
     var it = { el: e, posFn: posFn, data: data };
@@ -422,12 +733,14 @@ ORRERY.EarthOrbit = (function () {
       return '<div class="eo-stat"><span>Sub-satellite point</span><span>' +
         Math.abs(lat).toFixed(1) + '°' + (lat >= 0 ? 'N' : 'S') + ' · ' +
         Math.abs(lon).toFixed(1) + '°' + (lon >= 0 ? 'E' : 'W') + '</span></div>';
-    } : null;
+    } : (data.liveFn || null);
+    setTrack(data.track);
     c.classList.add('show');
   }
   function closeCard() {
     dom.card.classList.remove('show');
     cardLive = null;
+    setTrack(null);
   }
 
   // --- Label projection ------------------------------------------------------------------
@@ -477,6 +790,7 @@ ORRERY.EarthOrbit = (function () {
     built = true;
     S = ORRERY.STARLINK;
     K = ORRERY.Kepler;
+    Z = ORRERY.ZOO;
     vTmp = new THREE.Vector3();
     sunDir = new THREE.Vector3(1, 0, 0);
     earthEl = ORRERY.DATA.PLANETS.filter(function (p) { return p.key === 'earth'; })[0].el;
@@ -491,15 +805,17 @@ ORRERY.EarthOrbit = (function () {
     buildEarth();
     buildShells();
     buildAnchors();
+    buildZooFamilies();
     buildDossiers();
+    buildZooDossiers();
     buildDom();
 
     addLabel('ISS', function (out, jd) {
       eqToLocal(S.satPosKm(issShell, 0, 0, jd), out);
       return frame.localToWorld(out);
     }, function () { return ISS_DOSSIER; }, '#FFFFFF');
-    addLabel('GEO — 35,786 km', function (out, jd) {
-      eqToLocal(S.satPosKm(geoShell, 0, 0, jd), out);
+    addLabel('GEO ring', function (out, jd) {
+      eqToLocal(Z.geoSlotPosKm(0, jd), out);
       return frame.localToWorld(out);
     }, function () { return GEO_DOSSIER; }, '#F2A63C');
     addLabel('Moon', function (out) {
@@ -685,6 +1001,7 @@ ORRERY.EarthOrbit = (function () {
     var h = K.heliocentric(earthEl, jd);
     sunDir.set(-h.x, -h.z, h.y).normalize();
     sunGlow.position.copy(sunDir).multiplyScalar(3600);
+    sunDirEqKm = Z.sunDirEquatorial(earthEl, jd);   // same Sun, equatorial-km frame (Z.inShadow)
 
     // Earth spin — the SAME phase formula main.js uses for the orrery mesh
     var spin = S.earthSpinFraction(jd) * Math.PI * 2;
@@ -706,16 +1023,49 @@ ORRERY.EarthOrbit = (function () {
     S.satPosKm(issShell, 0, 0, jd, eqTmp);
     issSprite.position.set(eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
 
-    for (var g = 0; g < 12; g++) {
-      S.satPosKm(geoShell, 0, g, jd, eqTmp);
-      geoAttr.setXYZ(g, eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
-    }
-    geoAttr.needsUpdate = true;
-
     // Moon: true distance/period, schematic phase, ecliptic plane
     var ma = ((jd - S.EPOCH) / 27.322) * Math.PI * 2;
     moonMesh.position.set(Math.cos(ma) * 384.4, 0, -Math.sin(ma) * 384.4);
 
+    // --- Level 29: Orbital Zoo propagation + shadow dimming ---------------------------
+    var DIM = 0.28; // brightness multiplier while inside Earth's shadow cylinder
+
+    zooShellsR.forEach(function (zr) {
+      var fam = zr.family, a = zr.attr, ca = zr.colorAttr, base = zr.base, idx = 0;
+      for (var p = 0; p < fam.planes; p++) {
+        for (var s = 0; s < fam.perPlane; s++) {
+          S.satPosKm(fam, p, s, jd, eqTmp);
+          a.setXYZ(idx, eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
+          var f = Z.inShadow(eqTmp, sunDirEqKm) ? DIM : 1;
+          ca.setXYZ(idx, base.r * f, base.g * f, base.b * f);
+          idx++;
+        }
+      }
+      a.needsUpdate = true;
+      ca.needsUpdate = true;
+    });
+
+    var mIdx = 0;
+    for (var mp = 0; mp < Z.MOLNIYA.planes; mp++) {
+      for (var ms = 0; ms < Z.MOLNIYA.perPlane; ms++) {
+        var mPos = Z.molniyaPosKm(mp, ms, jd);
+        molAttr.setXYZ(mIdx, mPos.x * KM, mPos.z * KM, -mPos.y * KM);
+        var mf = Z.inShadow(mPos, sunDirEqKm) ? DIM : 1;
+        molColorAttr.setXYZ(mIdx, molBase.r * mf, molBase.g * mf, molBase.b * mf);
+        mIdx++;
+      }
+    }
+    molAttr.needsUpdate = true;
+    molColorAttr.needsUpdate = true;
+
+    geoSlots.forEach(function (gs) {
+      var pos = Z.geoSlotPosKm(gs.slot.lonDeg, jd);
+      gs.sprite.position.set(pos.x * KM, pos.z * KM, -pos.y * KM);
+      var dark = Z.inShadow(pos, sunDirEqKm);
+      gs.sprite.material.color.setScalar(dark ? DIM : 1);
+    });
+
+    updateTrack(jd);
     updateLabels(jd);
     updateClock(jd);
     updateRuler();
@@ -732,19 +1082,33 @@ ORRERY.EarthOrbit = (function () {
     get active() { return active; },
     /** Headless-verification hook: world positions + spin for the e2e spec. */
     debug: function () {
-      var a = new THREE.Vector3(), b = new THREE.Vector3();
+      var jd = ORRERY.TimeBar.jd;
+      var a = new THREE.Vector3(), b = new THREE.Vector3(), gp = new THREE.Vector3(), mp = new THREE.Vector3();
       frame.updateMatrixWorld(true);
-      eqToLocal(S.satPosKm(shellsR[0].shell, 0, 0, ORRERY.TimeBar.jd), a);
+      eqToLocal(S.satPosKm(shellsR[0].shell, 0, 0, jd), a);
       frame.localToWorld(a);
-      eqToLocal(S.satPosKm(geoShell, 0, 0, ORRERY.TimeBar.jd), b);
+      var geoLon0 = Z.GEO_SLOTS[0].lonDeg;
+      var geoPos = Z.geoSlotPosKm(geoLon0, jd);
+      eqToLocal(geoPos, b);
       frame.localToWorld(b);
+      eqToLocal(S.satPosKm(Z.GPS, 0, 0, jd), gp);
+      frame.localToWorld(gp);
+      var molPos = Z.molniyaPosKm(0, 0, jd);
+      eqToLocal(molPos, mp);
+      frame.localToWorld(mp);
       return {
-        jd: ORRERY.TimeBar.jd,
+        jd: jd,
         leoWorld: a.toArray(),
         geoWorld: b.toArray(),
-        spinFraction: S.earthSpinFraction(ORRERY.TimeBar.jd),
-        geoFixedLon: S.fixedLongitudeDeg(S.satPosKm(geoShell, 0, 0, ORRERY.TimeBar.jd), ORRERY.TimeBar.jd),
-        leoFixedLon: S.fixedLongitudeDeg(S.satPosKm(shellsR[0].shell, 0, 0, ORRERY.TimeBar.jd), ORRERY.TimeBar.jd)
+        spinFraction: S.earthSpinFraction(jd),
+        geoFixedLon: S.fixedLongitudeDeg(geoPos, jd),
+        leoFixedLon: S.fixedLongitudeDeg(S.satPosKm(shellsR[0].shell, 0, 0, jd), jd),
+        // Level 29: Orbital Zoo
+        gpsWorld: gp.toArray(),
+        molniyaWorld: mp.toArray(),
+        molniyaR: molPos.r,
+        geoNamedFixedLon: S.fixedLongitudeDeg(geoPos, jd),
+        geoNamedShadow: Z.inShadow(geoPos, Z.sunDirEquatorial(earthEl, jd))
       };
     }
   };
