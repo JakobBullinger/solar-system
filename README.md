@@ -1,30 +1,123 @@
 # Solar System — Live Orrery
 
-An interactive, self-contained 3D solar system in the browser. Planet, comet and
-moon positions come from real orbital mechanics (JPL Keplerian elements), a time
-engine scrubs from real-time to a year per second, and a gravity sandbox lets you
-launch bodies into genuine n-body physics — including a recreation of the
-Voyager grand tour.
+[![CI](https://github.com/JakobBullinger/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/JakobBullinger/solar-system/actions/workflows/ci.yml)
+[![Deploy](https://github.com/JakobBullinger/solar-system/actions/workflows/deploy.yml/badge.svg)](https://github.com/JakobBullinger/solar-system/actions/workflows/deploy.yml)
 
-No framework, no dependencies, no network requests: everything (three.js,
-procedural textures, physics, UI) bundles into a single `dist/index.html`.
+An interactive 3D solar system in the browser where nothing is animated by
+hand: real Keplerian orbits from JPL elements, an honest n-body gravity
+sandbox, and a Mission Designer game — with zero runtime dependencies,
+bundled into one self-contained HTML file.
 
-## Running it
+### **[▶ &nbsp;Open the live app](https://jakobbullinger.github.io/solar-system/)** &nbsp;·&nbsp; [Visitor's guide](https://jakobbullinger.github.io/solar-system/guide.html)
 
-| How | Where |
+<img src="docs/img/readme-hero.jpg" alt="The live orrery: the Sun and all eight planets with orbit lines, the asteroid and Kuiper belts, and comets Halley and Encke" width="100%">
+<p align="center"><sub>The orrery on load — every position computed live from JPL Keplerian elements; the time bar scrubs from real-time to a year per second.</sub></p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/img/readme-porkchop.jpg" alt="Launch Window Lab: a Mars porkchop plot with three gold departure windows">
+      <br><sub><b>Launch Window Lab</b> — a Mars porkchop plot computed live by a Lambert solver: gold valleys are cheap departures, repeating every ~26 months. Click one and the mission opens ready to aim.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/img/readme-eclipse.jpg" alt="The 12 August 2026 total solar eclipse: the Moon's umbra darkening Earth's disc">
+      <br><sub><b>12 Aug 2026, 17:46 UTC</b> — the Moon's umbra on Earth at greatest eclipse, found by the app's own eclipse finder (full lunar theory + 3D shadow cones, no lookup tables).</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/img/readme-earth-orbit.jpg" alt="Earth-orbit regime: the 4,408-satellite Starlink shell structure around a real-geography Earth">
+      <br><sub><b>Earth orbit</b> — zoom into Earth and the map hands over to a kilometre-scale regime: 4,408 Starlink satellites in their five real shells, the ISS, the GEO ring, the Moon.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/img/readme-groundtrack.jpg" alt="The Orbital Zoo: Molniya's orbit and its ground track painted on the turning globe">
+      <br><sub><b>The Orbital Zoo</b> — Molniya's critical-inclination orbit, its ground track painted onto the turning globe, and the dossier explaining why 63.4° is magic.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/img/readme-whatif.jpg" alt="What-If machine: a red dwarf at 50 AU has pulled the outer planets off their orbits">
+      <br><sub><b>The What-If machine</b> — park a red dwarf at 50 AU and the whole system promotes to true n-body physics: a century later Neptune is wrecked, and one click restores reality.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/img/readme-galaxy.jpg" alt="Cosmic zoom: the Milky Way resolved from the night-sky band, with a you-are-here marker on the Orion Arm">
+      <br><sub><b>The cosmic zoom</b> — keep scrolling out past Neptune: heliosphere, Oort cloud, the 20 nearest stars, and the night-sky band resolving into the Milky Way. You are here.</sub>
+    </td>
+  </tr>
+</table>
+
+## What's inside
+
+| | |
 |---|---|
-| **Live site** | https://jakobbullinger.github.io/solar-system/ (auto-deploys from main) |
-| Visitor's guide | https://jakobbullinger.github.io/solar-system/guide.html — what everything is, a 10-minute path, deep links (source: `site/guide.html`) |
-| Claude artifact (private mirror) | https://claude.ai/code/artifact/6cebdb03-7a56-40d8-b300-d5e4ed6170ac |
-| Dev server (auto-rebuild on save) | `npm run dev` → opens http://localhost:4173 |
-| Just build | `npm run build` → open `dist/index.html` in any browser |
+| **Live orrery** | Sun, planets, moons and comets on real JPL Keplerian rails; day/night terminators, city lights, ring and moon shadows; scrub time from real-time to a year per second |
+| **Sky almanac & eclipses** | Oppositions, elongations, conjunctions and every solar/lunar eclipse 2025–28 (instants within ~2 min of the canon), computed live — click any event to jump there; plus "the sky tonight" |
+| **Gravity sandbox & What-If machine** | Drag-launch bodies up to star mass into real n-body gravity; verified scenarios: a second Jupiter, a companion star, a rogue star, an asteroid-deflection drill |
+| **Mission Designer** | Nine missions against hard Δv budgets — flybys, a sun-grazer, orbit insertions, L2 station-keeping, the Voyager slingshot; star scoring, best-run ghosts, shareable challenge links |
+| **Mission replays & the Mars manifest** | New Horizons and Cassini re-flown chapter by chapter in the app's own physics; the five real 2026–31 Mars missions with their transfer trajectories |
+| **Earth orbit & Starlink** | A km-scale regime from the cloud tops to the Moon: Starlink shells, ISS, GPS, Molniya, named GEO slots, ground tracks, shadow crossings — and a pad-to-ISS launch ride |
+| **Cosmic zoom** | Scroll out past the planets: heliosphere with the real Voyagers, Oort cloud, nearest stars, Milky Way, Local Group — a seamless powers-of-ten journey |
+| **Physics overlays** | The gravity landscape with L-point saddles, speed-colored orbits (Kepler II visible), the Venus–Earth resonance rose, the Sun's barycentric wobble |
+| **Grand tour** | A 12-stop guided cinematic through all of the above; the [visitor's guide](https://jakobbullinger.github.io/solar-system/guide.html) is the written map with deep links |
+
+Everything above runs from a single static HTML file — no server, no network
+requests, no accounts. The [guide](https://jakobbullinger.github.io/solar-system/guide.html)
+has a 10-minute path and deep links straight into the good parts;
+[Using the app](#using-the-app) below is the full control reference.
+
+## Quick start
+
+**[Play online](https://jakobbullinger.github.io/solar-system/)** — auto-deployed
+from `main`. Or run it locally:
+
+```sh
+git clone https://github.com/JakobBullinger/solar-system.git
+cd solar-system
+node build.js        # → dist/index.html (no dependencies to install)
+open dist/index.html # any browser; works fully offline
+```
 
 `dist/index.html` is fully self-contained — it can be double-clicked, mailed,
-or hosted anywhere as a static file. The hosted artifact is private to your
-claude.ai account (shareable from there); after changes, redeploy the rebuilt
-`dist/index.html` to the same URL.
+or hosted anywhere as a static file.
+
+For development:
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | dev server with rebuild-on-save at http://localhost:4173 |
+| `npm test` | zero-dependency unit suite (physics vs published ephemerides, ~1.5 s) |
+| `npm install && npm run e2e` | 63-spec Playwright e2e suite against system Chrome |
+
+The app itself has **zero runtime dependencies** (three.js is vendored, textures
+are procedural, there are no network requests); Playwright is the repo's one
+dev-only dependency, used for the e2e suite. A private Claude-artifact mirror of
+the build lives at https://claude.ai/code/artifact/6cebdb03-7a56-40d8-b300-d5e4ed6170ac
+(redeploy target after changes).
+
+## How it's built
+
+Plain ES5-style IIFE modules on a `window.ORRERY` namespace — no framework —
+concatenated in dependency order by `build.js` into the single-file bundle.
+Positions come from real ephemerides (JPL Keplerian elements, a full Meeus
+lunar theory for eclipse-grade Moon positions), and the set-piece trajectories
+(Voyager, New Horizons, Cassini, the Mars manifest) are baked offline by
+Newton-shooting against the app's own integrator, then pinned by regression
+tests. Details: [Architecture](#architecture) and
+[Physics notes](#physics-notes) below.
+
+Verification is the house culture: the unit suite plus the 63-spec Playwright
+e2e suite (console-error trap, pixel-asserted screenshots against real
+rendered frames) gate every PR in CI, every PR gets a live preview deployment,
+and no mission par ships without a brute-force playtest scan proving it
+beatable. The repo is developed by parallel Claude Code agent lanes — one git
+worktree and branch per feature, an orchestrator session merging PRs,
+re-verifying on `main` and deploying — with roles, protocol and hard-won
+process lessons documented in [ORCHESTRATION.md](ORCHESTRATION.md).
 
 ## Using the app
+
+*The [visitor's guide](https://jakobbullinger.github.io/solar-system/guide.html)
+is the curated introduction; this is the complete reference.*
 
 - **Everything lives in two controls, top right**: **✦ Explore** (Tour, Replays,
   Missions, Sandbox, Mars, Windows, Events) and **◉ View** (display toggles +
@@ -187,7 +280,10 @@ serve.js                 dev server with watch + rebuild
   virtual time; drive `ORRERY.Sandbox.tick(jd, jd+2)` in a loop from an injected
   script instead.
 
-## Log
+## Development log
+
+The running log of every landed change, oldest first — this table is the
+project's history and is appended to after every merge.
 
 | Date | Level | What landed |
 |---|---|---|
@@ -216,7 +312,6 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-06 | 19 · Three-Body Room | Lagrange points as first-class citizens: `lagrange.js` solves the CR3BP collinear balance by bisection (roots cached per mass ratio; node-checked: Sun–Earth L1/L2 at 0.0102 AU, Sun–Jupiter L1 at 0.35 AU) and L4/L5 ride ±60°; an **L-points** toggle shows ten selectable markers with dossiers (JWST/Euclid at Earth L2, SOHO's storm-warning perch at L1, the sci-fi Counter-Earth at L3, Lucy touring the Trojans); always-on Trojan swarm clouds track Jupiter's actual L4/L5 bearings. New mission **Halo Keeper**: park within 0.01 AU of Sun–Earth L2 and hold 60 days — departure-only tops out at ~51 d (the saddle is real), so the mid-course burn is the mission. Playtest scan: 6,233 winning plans, 304/400 robust to frame-step jitter, min 0.4 km/s → par 0.5; station-keeping preview runs flight-grade steps (h=0.25), 99% verdict agreement; beaten 3★ in-app headless |
 | 2026-07-07 | 23 · Mars planner | The real Mars manifest, visualized: a **Mars** drawer with a timeline of the five verified next missions (deep-research fact-check 2026-07-06; NASA/ESA MSR and Starship deliberately excluded) — ESCAPADE (loitering at Sun–Earth L2 now, powered Earth-flyby departure Nov 2026, Mars Sept 2027), MMX, Rosalind Franklin, Tianwen-3, SR-1 Freedom (aspirational → dashed). Each mission carries a dossier and a baked reference trajectory: Lambert transfers seeded from the NASA design-handbook windows, Newton-shooting refined offline so `previewLive` from the baked departure state threads Mars within 670–1,700 km on the reference arrival date; Rosalind Franklin's 26-month cruise needed an offline **one-revolution** Lambert scan (zero-rev bottoms out at C3 ~40; the 1-rev family gives C3 21.6, dep 10 Oct 2028 → Oxia Planum 3 Dec 2030). ESCAPADE's L2-loiter year draws from `Lagrange.point` samples and its L2 dossier cross-links back; "Fly the transfer" hands the state to the sandbox integrator and runs the clock to arrival. `mars-planner.test.js` doubles as level-17 validation: our `lambert.js` reproduces all 7 published handbook C3/v∞ fixtures to ±0.05/±0.02 and grid minima land on the handbook's dates. E2E headless: drawer + dossiers render, ESCAPADE/MMX arcs pass 790/697 km from Mars on 8 Sep / 9 Aug 2027, flown MMX arrives on date, zero console errors |
 | 2026-07-07 | 26 · Seeing the Invisible | Four physics overlays behind one **Physics** drawer (`vizpanel.js` owns all wiring; main.js gains only init+tick), each a toggle that draws something real. **Gravity landscape** (`gravitywell.js`): a polar wireframe under the ecliptic bends by log-scaled solar potential — funnel readable Mercury→Neptune instead of one spike — with per-planet dimples depth-ordered by mass (widths floored so Earth's well survives the distance compression: ordering honest, absolute depth not); switch frame to Earth/Jupiter co-rotating and a magnified patch pinned under the planet draws the CR3BP effective potential with its **L1/L2 saddle passes**, positions taken from `lagrange.js` (read-only) so surface and markers can't disagree — the patch is static in the rotating frame and only re-rotates each frame (radial compression commutes with rotations about the pole). **Speed colours** (`overlays.js`): vis-viva vertex colours baked once onto every orbit line by inverting the scene compression per vertex and recovering a = (r_min+r_max)/2 from the loop itself — one global 3–60 km/s log ramp, so Mercury burns, Neptune crawls, comets flash red at perihelion; a live velocity arrow + km/s tag rides the selected body, and sandbox/mission preview arcs tint by speed (from consecutive sample spacing — two guarded one-liners in sandbox/missions) so a slingshot visibly steals speed and keeps it. **Resonance rose** (`spirograph.js`): the Venus–Earth chord every 4 days sweeps the five-petalled 8-year rose; Earth–Mars, Jupiter–Saturn 5:2 and the Galilean 1:2:4 pulse (chords in Jupiter's tilt frame) selectable; sim-time sampling with analytic Kepler backfill makes the figure identical at any playback speed or headless clock jump. **The Sun's wobble** (`barycenter.js`): the barycentre rosette as a ×6,500 inset with the Sun's photosphere circle at the same scale — the pivot exits the disc when Jupiter and Saturn gang up — ~130 y fading trail (two J–S beats), masses = the integrator's own JPL ratios, plus a Sun-dossier stat: this wobble is how exoplanets are found. All overlays LineSegments/vertex-colour/additive with depthWrite off (SwiftShader-safe, no depth-punch), suppressed while the cosmic zoom owns the screen. Verified: `seeing-invisible.spec.js` — every overlay toggled on/off with zero console errors, 9 pixel-asserted screenshots (rose, Galilean pulse, wobble, all three landscape frames incl. Earth's L1/L2 saddles), Earth's arrow reads 28–32 km/s, accumulation driven through `driveTicks` clock jumps (750+ chords across two 1,500-day leaps) |
-
 | 2026-07-07 | Tooling | e2e harness: Playwright on system Chrome (`npm run e2e`), console-error trap + `driveTicks` virtual-time workaround as a spec library; `lane-check` pre-PR audit script; rebake + lane-check + e2e-harness skills. Dev flow is now PR-based (ORCHESTRATION v2): agents open PRs, CI gates them — this row landed via PR #1 |
 | 2026-07-07 | Tooling | CameraPath: the repo's four camera-easing implementations unified into one shared primitive (`camerapath.js` — keyframed position/target flights, pluggable easing with the classic cubic ease-out default, begin/cancel/isActive/tick, one-flight-at-a-time ownership). main.js focus/flyHome, tour stop transitions and the cosmic-zoom exit restore now ride it; Ride's per-frame chase stays its own (it follows a moving target, not a path) and only its boundary cancellation goes through the primitive — including the subtle rule that a flight begun by an onStop handler mid-ride-exit is discarded, exactly as before. Behavior-preserving by construction: same 1.6 s duration, same ease, same interrupt points. Parity proven by `camerapath.spec.js`: chip-click flights land on the exact old destination (snap *and* animated paths), Esc mid-tour restores camera + clock, cosmos round trip lands at max-zoom·0.9, mission aiming holds with no stray flight — plus tour-stop-2 / mission-aim / post-cosmos-exit screenshots. Found en route: the e2e config's `use.reducedMotion` never reaches the page (specs now emulate it per-page) |
 | 2026-07-07 | 25 · Living orbits | Physics-driven animation, six pieces riding data the physics already produced. **Trajectory draw-in** (`trajanim.js`): previewLive keeps a point every fixed number of integrator steps, so easing the geometry draw range plays any arc along its own time axis — wired into Mars-planner transfers and mission flight plans. **Probe glyph**: a sprite riding cached previewLive points indexed by the sim clock (AU-lerped between samples) — scrub the time bar and ESCAPADE walks its transfer at zero physics cost. **Orbit flow** (`orbitflow.js` + a **Flow** toggle): orbit lines gain an additive pulse-train overlay whose per-vertex attribute is the mean-anomaly fraction (Kepler's equation on the same E-sweep the line was drawn from) and whose phase is the body's own mean anomaly at the sim clock — pulses move at the TRUE local rate, stretching long and whipping through perihelion, crawling bunched at aphelion (Kepler 2 visible, comets dramatic; pause time and the streams stand still). Base lines untouched so the cosmic-zoom fade and the Orbits toggle work unchanged; the overlay is additive + depthWrite:false (level-22 lesson). **Trail age-fade + burn flares** (sandbox): trail vertices remember the sim time they were laid and fade by actual age, and scheduled impulses bloom a brief additive flare where they fire — mission mid-course burns auto-detected off `p.burns`, Cassini's DSM/flyby kicks and its Saturn orbit insertion via the new `Sandbox.flareAt` — burns are no longer HUD-only events. **Eased clock jumps**: every `TimeBar.jd` teleport (porkchop picks, almanac events, mission epochs, next-perihelion, Voyager's 50-year rewind) is now a ~0.55 s logarithmic ease; the sandbox accumulates the whole jump into the single step it used to be, so the 30-day teleport-guard semantics are exactly preserved (proved in-spec), `snapJd` covers replay choreography that re-integrates synchronously, and reduced motion snaps. **Director mode** (`director.js`): after 75 s without input the camera cuts between slow composed beauty shots built on CameraPath (cut = instant flight, drift = one 14 s eased arc, dwell, next subject) until any input exits; Ride/Tour/Sandbox/Missions/Cosmos/Replays and open drawers block entry and force exit. Verified: `npm test` green; 16 e2e specs green incl. new `living-orbits.spec.js` (draw-in completes and snaps under reduced motion, glyph tracks the clock and parks outside its window, Flow toggle round-trips, an organically-fired burn flares, an eased jump lands exactly with physics untouched, director enters/composes/exits and respects guards); screenshot artifacts of orbit flow (home + comet close-up), a burn-flash close-up and a director composed shot |
@@ -236,6 +331,7 @@ serve.js                 dev server with watch + rebuild
 | 2026-07-08 | Fix · Earth-orbit HUD overlap | User-reported (live site): the ascent ride's "Ride a launch — pad to ISS" button rendered directly on top of the regime's rate-pill row. Root cause: a merge blind spot between two lanes' CSS appends — level 24's `.eo-clock` (clock + pills) and PR #19's `.asc-launch-btn` were BOTH absolutely anchored at `left:50% / bottom:26px` inside `#eo-ui`, so they stacked on the same point at every viewport (reproduced at 1600×1000, 1280×720 and 390×664 before fixing). Fix is structural, not another tuned offset: the bottom-center band is now ONE flex column owned by `.eo-clock` — hint → clock → rate pills → launch button — with the button mounted into the column (`earthorbit.js` passes `dom.clockWrap` as the ascent container) and the hint moved into it too, because the hint's own `bottom:76px` anchor was hand-tuned to clear a two-row column and collided the moment the column grew (caught by the first fix attempt's screenshot). Bonus find at phone width: the right-docked km ruler overlapped the button (the column's widest row) — ≤720px now docks the ruler under the ✕-exit, top-right. Regression-guarded in `hud-overlap.spec.js`: at all three viewports, launch button / pills / clock / hint / ruler are pairwise non-intersecting, fully on-screen, and the button keeps its ≥28px touch height; `npm test` + full e2e suite green |
 | 2026-07-08 | Onboarding · Grand Tour v2 + visitor guide | The cinematic tour catches up with levels 13–29: twelve self-contained stops (Sun → real-Earth → Halley '86 with Kepler-II flow pulses → the almanac's next real sky event, computed at stop entry → the 12 Aug 2026 total-eclipse umbra sweep, instant from the app's own finder → what-if companion star with every rail honestly fading and Neptune dragged off, then `Sandbox.clear()` as the restore → baked MMX Mars-transfer preview via `MarsPlanner.select` with the drawer shut → Voyager '77 → hosted **Earth orbit** with the ISS dossier + ground track → hosted **cosmic zoom** riding L to the galaxy → restore finale). Per-stop `setup()` returns its own `teardown()`, and goTo/Esc ALWAYS unwind the previous stop first, so any exit path restores clock, camera, rails and both regimes; the EarthOrbit/Cosmos guards in main.js gained a narrow `Tour.hosting` exemption (they still force-exit on any other tour state). Found + fixed en route: main.js's massive-mode planet-visibility restore was undoing the cosmic-zoom fade every frame — Saturn hung inside the Milky Way on main. First-visit offer + Explore row copy sell the new tour, and a static **visitor guide** (`site/guide.html`, inline CSS, dark+light, mobile) ships to /guide.html via deploy.yml (gh-pages checkout renamed to dodge the new `site/` dir; the verify step now polls the guide too): what-this-is, a 10-minute path, a capability map mirroring Explore/View, and deep links incl. the eclipse sweep and a ★★★ Mars-Orbiter challenge link built from the insertion-test champion. Discreet in-app "Visitor's guide" link in the Explore menu (absolute URL — works from the artifact mirror). Verified: `npm test` green; full 59-spec e2e suite green incl. new `onboarding.spec.js` (all twelve captions walked with per-stop mode/state asserts, Esc mid-hosted-stop unwinds everything in one keypress, offer shows once, guide links resolve in-app, challenge link engages its ghost); screenshots of eclipse/what-if/Mars/Earth-orbit/cosmos stops + guide in both schemes |
 | 2026-07-08 | Fix · GEO label interleave | User-reported (live site, desktop): in the Earth-orbit regime two satellite labels rendered at the same projected point and their glyphs interleaved into garbage ("MGEOELBAITG1" where METEOSAT-11 should be). Root cause: the "GEO ring" anchor label is pinned at longitude 0° — exactly Meteosat-11's filed slot — so the two labels coincide in 3D at ALL times and camera angles, and neighboring GEO slots (Astra 19.2°E vs Meteosat 0°) merge the same way at shallow bearings, so the fix is generic screen-space decluttering, not a data nudge. Fix (`earthorbit.js updateLabels`): after per-frame projection, a greedy collision pass in insertion order — when a label's screen box would intersect an already-placed one it drops just below the blocker (2px gap), keeping every label legible, its own dot marker, and its dossier click; box sizes measured once and cached (text/font never change) so the steady-state pass is pure arithmetic over ~10 visible labels, no layout reads in the frame loop. Labels stay click-through during touch aim modes (untouched — coarse-pointer rule lives in CSS). Regression-guarded in `hud-overlap.spec.js`: at the zoo spec's pinned jd + camera the previously-interleaved pair is separated (2001.9 px² overlap reproduced pre-fix), no two visible eo labels intersect pairwise, and clicking the Meteosat-11 label still opens its dossier; zoo/earthorbit/mobile/hud-overlap specs + `npm test` green |
+| 2026-07-08 | Tooling | README landing page: the repo front page now opens as a landing page for shared-link visitors — hero + CI/Deploy badges, a 7-shot gallery (`tools/readme-shots.js`: a pinned-clock Playwright generator reusing the e2e library's proven camera recipes; JPEG-converted to keep each shot < 300 KB), a capability table, quick start, and a short how-it's-built with the ORCHESTRATION.md pointer. All prior content preserved: the log table verbatim (retitled "Development log"), Using-the-app/Architecture/Physics-notes untouched below the fold |
 
 ## Ideas / backlog
 
