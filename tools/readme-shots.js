@@ -120,10 +120,11 @@ const SHOTS = {
     await clearChrome(page);
     // More lateral offset than the spec's framing pushes the Moon's display
     // sphere toward the frame edge; the clip crops it and the dossier panel
-    // out so the lit disc + umbra carry the image.
+    // out so the lit disc + umbra carry the image, at the same 1.6:1 aspect
+    // as the other gallery shots (uneven rows read badly in the README grid).
     await daySideCamera(page, 5.2, 6.4, 2.0);
     await raf(page, 6); // SwiftShader: extra frames before shooting
-    await shot(page, 'readme-eclipse', { x: 0, y: 0, width: 1100, height: 1000 });
+    await shot(page, 'readme-eclipse', { x: 0, y: 148, width: 1100, height: 688 });
     await page.close();
   },
 
