@@ -120,6 +120,24 @@ test('ride a launch: pad -> max-Q -> MECO -> SECO -> circularization -> parked a
   expect(d.speed, 'circularized speed ~7.66 km/s').toBeGreaterThan(7.6);
   expect(d.speed, 'circularized speed ~7.66 km/s').toBeLessThan(7.7);
 
+  // The ride genuinely ends NEAR the ISS: geocentric separation vs the real
+  // starlink.js ISS model at the app's own current jd — alongside (same
+  // plane, small along-track gap), honestly not docked.
+  const sepKm = await page.evaluate(() => {
+    const A = window.ORRERY.AscentProfile;
+    const S = window.ORRERY.STARLINK;
+    const dbg = window.ORRERY.Ascent.debug();
+    const st = A.stateAtMissionTime(dbg.missionElapsed);
+    const eci = A.toECI(st.x, st.y, A.PROFILE.constants.TARGET_INC_DEG, A.PROFILE.omegaAscentDeg);
+    const iss = S.satPosKm(
+      { altKm: S.ISS.altKm, incDeg: S.ISS.incDeg, planes: 1, perPlane: 1, f: 0 },
+      0, 0, window.ORRERY.TimeBar.jd
+    );
+    return Math.hypot(eci.x - iss.x, eci.y - iss.y, eci.z - iss.z);
+  });
+  expect(sepKm, 'parked genuinely alongside the ISS, not somewhere else').toBeLessThan(500);
+  expect(sepKm, 'and honestly not docked at the exact same point').toBeGreaterThan(20);
+
   await settle(page);
   await screenshot(page, 'ascent-orbit').then(assertSceneRendered);
 
