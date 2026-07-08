@@ -5,9 +5,16 @@ how we work is in ORCHESTRATION.md. Keep this file updated when plans change —
 it is the only place forward plans live *in the repo* (session memory mirrors
 it but is machine-local).
 
-## In flight
+## In flight (launched 2026-07-08)
 
-(nothing — wave 7 landed 2026-07-07/08: Level 28 Real Earth (#18), Level 29
+- **Onboarding** (`../solar-system-onboarding`, `feature/onboarding`, 4174):
+  Grand Tour v2 — in-app capability showcase covering levels 13–29 with
+  strict per-stop state restore — plus a shareable static `guide.html` on
+  the Pages site (deep links into features) and an in-app link to it.
+  Purpose: the user wants to share the prototype; current tour predates
+  missions/what-if/eclipses/Earth orbit.
+
+(previously: wave 7 landed 2026-07-07/08: Level 28 Real Earth (#18), Level 29
 Orbital Zoo (#17), ascent ride-along (#19). The overnight laptop sleep
 killed all three lanes mid-flight; all three were recovered — resume-from-
 transcript, takeover agent, and an orchestrator hand-finish respectively.
