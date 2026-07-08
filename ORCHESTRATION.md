@@ -40,6 +40,11 @@ done-signal is now a pull request. Untracked local files (in
 | `.orchestrator-inbox.md` | orchestrator | instructions/nudges for the agent |
 | **pull request** | agent | replaces v1's `.agent-done`: feature finished **and verified**; the PR body is the handoff (what changed / how verified / merge caveats) |
 
+Verification pacing (2026-07-08): while ITERATING, run only the specs your
+change touches; run the FULL e2e suite exactly once, post-rebase, as act 3
+of the finish sequence. CI re-runs the full suite on the PR regardless — a
+second and third local full-suite run buys nothing but wall-clock.
+
 Agent finish sequence — the FINAL FIVE ACTS, in order, none skippable:
 1. Re-read `.orchestrator-inbox.md`.
 2. `git rebase main` (fresh main — `git fetch` first if in doubt).
