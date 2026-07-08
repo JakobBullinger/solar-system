@@ -426,6 +426,7 @@
     }
 
     ORRERY.Panel.tick(jd);
+    ORRERY.Tour.dodgeTick(camera);  // caption card dodges the tracked subject
     ORRERY.Labels.update(camera, window.innerWidth, window.innerHeight);
     ORRERY.Shaders.update(dt);
 

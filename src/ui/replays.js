@@ -538,6 +538,13 @@ ORRERY.Replays = (function () {
     spawnCraft(def);
     applyChapter(0);
 
+    // The chase camera frames the craft low on screen (looking ahead of
+    // it) — right where the caption card sits on shorter viewports. Track
+    // it so the shared card dodges out of the spectacle (tour.js).
+    ORRERY.Tour.trackSubject(function () {
+      return vis && vis.p.alive ? vis.sprite.position : null;
+    });
+
     ORRERY.Ride.start({
       label: def.craft,
       back: def.chapters[0].back,
@@ -666,6 +673,7 @@ ORRERY.Replays = (function () {
     if (!active) return;
     active = false;
     cancelAnimationFrame(raf);
+    ORRERY.Tour.trackSubject(null);
     ORRERY.Ride.exit();
 
     var TB = ORRERY.TimeBar;

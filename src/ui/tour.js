@@ -28,6 +28,18 @@
  * Stop-to-stop camera flights ride ORRERY.CameraPath through the focus /
  * flyHome hooks: each stop begins a new flight, which cancels the previous
  * one — jumping between stops mid-flight is safe by construction.
+ *
+ * Card dodge — the caption card must never sit in front of the spectacle
+ * it narrates. Whoever drives the card registers the tracked subject's
+ * world position (trackSubject); every frame main.js hands the render
+ * camera to dodgeTick, which projects the subject and, if it lands inside
+ * the card's home footprint, slides the card to the top of the screen
+ * (CSS .dodge — same card, same look). The replay chase camera frames its
+ * spacecraft ~70% down the screen BY DESIGN (looking ahead of it), which
+ * is exactly the bottom-center card zone on shorter viewports — so during
+ * replays the dodge engages per-chapter; tour stops center their subject
+ * and normally never trigger it. Hysteresis (tight engage box, generous
+ * release box + dwell) keeps the card from flapping.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -220,6 +232,79 @@ ORRERY.Tour = (function () {
   var saved = null;
   var cleanup = null;               // current stop's teardown, if it made one
 
+  // --- Card dodge (shared with Replays) --------------------------------------
+  var subjectFn = null;             // () → world-space THREE.Vector3, or null
+  var dodged = false;
+  var dodgeHit = 0, dodgeMiss = 0;  // hysteresis frame counters
+  var lastProbe = null;             // last projection, for the e2e guard
+  var projV = null, worldV = null;  // lazy scratch (node harness has no THREE)
+  var PAD_IN = 48;                  // engage: the subject is a glowing glyph
+                                    // with a trail, not a point — measured so
+                                    // the Pluto/Jupiter flybys clear the card
+  var PAD_OUT = 90;                 // release: subject this far clear of it
+  var HIT_FRAMES = 3;               // engage dwell — ignores camera-sweep blips
+  var MISS_FRAMES = 45;             // release dwell — no flapping at the edge
+  var TOP_GAP = 64;                 // dodged card's top margin — clears the
+                                    // ride HUD pill (top 16px + ~40px tall)
+
+  /** Register where the spectacle is (world position getter), or null.
+   *  The tour tracks its focused stop body; Replays track their spacecraft. */
+  function trackSubject(fn) {
+    subjectFn = fn || null;
+    if (!fn) { setDodge(false); lastProbe = null; }
+    dodgeHit = dodgeMiss = 0;
+  }
+
+  function setDodge(on) {
+    if (on === dodged) return;
+    dodged = on;
+    dodgeHit = dodgeMiss = 0;
+    if (els.root) els.root.classList.toggle('dodge', on);
+  }
+
+  /**
+   * Per-frame, from main.js with the render camera: project the tracked
+   * subject; if it falls inside the caption card's HOME footprint (where
+   * the card sits when not dodged — measured dodge-independently so the
+   * test can't oscillate), ride the card to the top of the screen.
+   */
+  function dodgeTick(camera) {
+    if (!els.root || !els.root.classList.contains('show')) { lastProbe = null; return; }
+    if (!subjectFn) return;
+    if (!projV) { projV = new THREE.Vector3(); worldV = new THREE.Vector3(); }
+    var p = subjectFn();
+    if (!p) { setDodge(false); return; }
+    projV.copy(p).applyMatrix4(camera.matrixWorldInverse);
+    var behind = projV.z >= 0;
+    projV.applyMatrix4(camera.projectionMatrix);
+    var x = (projV.x + 1) / 2 * window.innerWidth;
+    var y = (1 - projV.y) / 2 * window.innerHeight;
+
+    // The card's home rect: bottom-anchored (26px / 12px mobile), centered.
+    var w = els.card.offsetWidth, h = els.card.offsetHeight;
+    var bottom = parseFloat(getComputedStyle(els.root).bottom) || 26;
+    var top = window.innerHeight - bottom - h;
+    var left = (window.innerWidth - w) / 2;
+
+    var pad = dodged ? PAD_OUT : PAD_IN;
+    var hit = !behind &&
+      x > left - pad && x < left + w + pad &&
+      y > top - pad && y < top + h + pad;
+    lastProbe = { x: x, y: y, behind: behind, hit: hit, dodged: dodged };
+
+    if (hit) {
+      dodgeMiss = 0;
+      // Keep the ride-up distance current (viewport / card size can change)
+      els.root.style.setProperty('--tour-dodge', -(top - TOP_GAP) + 'px');
+      if (!dodged && ++dodgeHit >= HIT_FRAMES) setDodge(true);
+    } else if (dodged) {
+      dodgeHit = 0;
+      if (++dodgeMiss >= MISS_FRAMES) setDodge(false);
+    } else {
+      dodgeHit = 0;
+    }
+  }
+
   function init(hooks) {
     api = hooks;
     els.root = document.getElementById('tour');
@@ -313,6 +398,7 @@ ORRERY.Tour = (function () {
 
   function applyStop(s) {
     var TB = ORRERY.TimeBar;
+    trackSubject(null);             // re-registered below if the stop frames a body
     if (s.setup) cleanup = s.setup() || null;
 
     api.controls.autoRotate = !!s.autoRotate;
@@ -331,7 +417,11 @@ ORRERY.Tour = (function () {
 
     var key = resolve(s.key);
     if (key && api.registry[key]) {
-      api.focus(api.registry[key], s.dist || 1);
+      var entry = api.registry[key];
+      api.focus(entry, s.dist || 1);
+      // Focused stops center their subject, so this normally never fires —
+      // it's the safety net that keeps any future stop honest too.
+      trackSubject(function () { return entry.getWorldPosition(worldV); });
     } else {
       api.clearFocus();
       api.flyHome();
@@ -391,6 +481,7 @@ ORRERY.Tour = (function () {
     active = false;
     clearTimeout(timer);
     runCleanup();                   // hosted modes / scenarios unwind first
+    trackSubject(null);
     restoreTime();
     api.controls.autoRotate = false;
     api.clearFocus();
@@ -405,9 +496,16 @@ ORRERY.Tour = (function () {
     start: start,
     exit: exit,
     maybeOffer: maybeOffer,
+    trackSubject: trackSubject,     // Replays register their spacecraft here
+    dodgeTick: dodgeTick,           // main.js, per frame, with the render camera
     get active() { return active; },
     /** Mode the current stop intentionally drives ('earthorbit' | 'cosmos'
      *  | null) — main.js's guard closures exempt exactly this mode. */
-    get hosting() { return hosting; }
+    get hosting() { return hosting; },
+    // e2e guard hooks — where did the subject last project, did the card move
+    _dev: {
+      get probe() { return lastProbe; },
+      get dodged() { return dodged; }
+    }
   };
 })();
