@@ -2521,6 +2521,84 @@ body.earthorbit .panel { display: none; }
   .eo-caption p { display: none; }
 }
 
+/* ---- Ascent ride-along (pad-to-ISS chase-cam inside Earth orbit) ----------
+   The entry button lives in the same #eo-ui chrome; while riding, the busy
+   legend/hint/caption declutter (body.riding-ascent) so the pad-to-orbit
+   caption card and the clock/exit stay the only chrome on screen. */
+.asc-launch-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(242, 166, 60, 0.16);
+  border: 1px solid rgba(242, 166, 60, 0.45);
+  border-radius: 999px;
+  pointer-events: auto;
+  transition: background 0.15s, border-color 0.15s;
+}
+.asc-launch-btn:hover { background: rgba(242, 166, 60, 0.28); border-color: var(--amber); }
+body.riding-ascent .eo-legend,
+body.riding-ascent .eo-hint,
+body.riding-ascent .eo-caption,
+body.riding-ascent .asc-launch-btn { display: none; }
+
+.asc-hud {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(560px, 92vw);
+  padding: 14px 18px;
+  background: rgba(10, 14, 24, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.asc-hud.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.asc-caption h3.asc-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.asc-caption p.asc-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.asc-exit {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(151, 168, 198, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.asc-exit:hover { color: var(--text); border-color: rgba(233, 238, 247, 0.4); }
+@media (prefers-reduced-motion: reduce) {
+  .asc-hud { transition: none; }
+}
+@media (max-width: 720px) {
+  .asc-hud { flex-direction: column; align-items: stretch; gap: 8px; }
+}
+
 /* ---- Eclipses (level 27) --------------------------------------------------
    Almanac drawer section: eclipse rows get their own accents (solar amber-
    on-dark, lunar copper) and a small honesty note in the section header. */
