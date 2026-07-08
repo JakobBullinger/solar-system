@@ -46,10 +46,6 @@ Level 21 Mission Control remains gated on human playtest feedback (user:
 
 ## Backlog (small, any gap)
 
-- Rocket ascent ride-along in the Earth-orbit regime (level-24 stretch, not
-  attempted): scripted launch-to-LEO camera ride on a baked kinematic
-  gravity-turn profile, honestly labeled — the regime's km scale and time
-  controls are already in place for it.
 - L-point close-up camera: back the fly-in off the marker glow.
 - Photo mode; bloom/post-processing; planet shaders II (flowing Jupiter
   bands, ocean glint, aurorae) — the "cinematic" list, additive polish.
