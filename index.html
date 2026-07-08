@@ -2320,6 +2320,18 @@ body.earthorbit .panel { display: none; }
   flex-direction: column;
   gap: 4px;
   pointer-events: auto;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.eo-legend::-webkit-scrollbar { display: none; }
+.eo-legend-h {
+  margin: 6px 0 -2px 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .eo-key {
   display: grid;
@@ -2515,6 +2527,84 @@ body.earthorbit .panel { display: none; }
 @media (max-width: 720px) {
   .eo-legend { display: none; }
   .eo-caption p { display: none; }
+}
+
+/* ---- Ascent ride-along (pad-to-ISS chase-cam inside Earth orbit) ----------
+   The entry button lives in the same #eo-ui chrome; while riding, the busy
+   legend/hint/caption declutter (body.riding-ascent) so the pad-to-orbit
+   caption card and the clock/exit stay the only chrome on screen. */
+.asc-launch-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(242, 166, 60, 0.16);
+  border: 1px solid rgba(242, 166, 60, 0.45);
+  border-radius: 999px;
+  pointer-events: auto;
+  transition: background 0.15s, border-color 0.15s;
+}
+.asc-launch-btn:hover { background: rgba(242, 166, 60, 0.28); border-color: var(--amber); }
+body.riding-ascent .eo-legend,
+body.riding-ascent .eo-hint,
+body.riding-ascent .eo-caption,
+body.riding-ascent .asc-launch-btn { display: none; }
+
+.asc-hud {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(560px, 92vw);
+  padding: 14px 18px;
+  background: rgba(10, 14, 24, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.asc-hud.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.asc-caption h3.asc-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.asc-caption p.asc-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.asc-exit {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(151, 168, 198, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.asc-exit:hover { color: var(--text); border-color: rgba(233, 238, 247, 0.4); }
+@media (prefers-reduced-motion: reduce) {
+  .asc-hud { transition: none; }
+}
+@media (max-width: 720px) {
+  .asc-hud { flex-direction: column; align-items: stretch; gap: 8px; }
 }
 
 /* ---- Eclipses (level 27) --------------------------------------------------
@@ -5255,6 +5345,432 @@ ORRERY.GeoData = (function () {
 })();
 
 
+/* ========== src/data/ascentprofile.js ========== */
+/**
+ * ascentprofile.js — Level "ascent ride-along": a baked pad-to-ISS launch
+ * trajectory, physics tier 1 (offline-baked 2D point-mass integration —
+ * see CLAUDE.md's rebake pattern and .claude/skills/rebake).
+ *
+ * PHYSICS HONESTY: this is a 2D point-mass simulation in the launch's own
+ * orbital plane (thrust + spherical gravity + a simple exponential-atmosphere
+ * drag), with real-ish Falcon-9-class numbers (two stages, μ/Isp/mass from
+ * public specs) and a Newton/bisection-tuned free parameter. It is NOT a
+ * high-fidelity 6-DOF guidance sim: the steering law is an explicit pitch
+ * program shaped like a gravity turn (angle-from-vertical eased over a fixed
+ * window) rather than closed-loop guidance, drag opposes INERTIAL velocity
+ * (ignores the ~0.4 km/s the atmosphere itself carries from Earth's spin —
+ * a small effect at these altitudes/speeds), and stage thrust ramps with
+ * ambient pressure fraction (not a real per-second throttle table). Every
+ * number that "reaches" 420 km circular was FOUND by re-running this exact
+ * integrator (see rebake() below / test/ascent.test.js), never asserted.
+ *
+ * Sequence (mission-elapsed seconds from liftoff):
+ *   stage 1 burn (thrust+gravity+drag, RK4)          0        → BURN1
+ *   stage separation coast (no thrust)                BURN1    → BURN1+SEP_COAST
+ *   stage 2 burn (thrust+gravity, RK4)                 …        → T_SECO (BAKED)
+ *   unpowered coast to apogee (closed-form Kepler)     T_SECO   → apogee
+ *   circularization burn (instantaneous, analytic Δv) at apogee
+ *   parked circular orbit at 420 km, 7.66 km/s, forever after
+ *
+ * T_SECO (stage-2 cutoff time) is the ONE free parameter: for the fixed
+ * pitch program below, apogee-of-resulting-orbit(T_SECO) is smooth and
+ * monotonic in the region used, bisected here to land the transfer orbit's
+ * apogee exactly at the ISS's 420 km (see rebake() and test/ascent.test.js,
+ * which re-integrates and re-bisects independently as its own regression
+ * guard). Found: T_SECO ≈ 429.535 s → apogee 420.6 km, perigee 126.9 km
+ * (a genuine, non-degenerate transfer orbit — perigee clears the Earth, no
+ * re-entry risk in the modeled physics), circularization Δv ≈ 85 m/s.
+ *
+ * Launch site: Cape Canaveral, 28.5°N. Target inclination 51.6° (the ISS's,
+ * from ORRERY.STARLINK.ISS) requires a NE launch azimuth — spherical trig,
+ * sin(azimuth) = cos(inclination)/cos(latitude) — because a ground track's
+ * maximum latitude reached equals the orbit's inclination, and the launch
+ * site's latitude (28.5°) must be ≤ that inclination (51.6°) for the launch
+ * to reach it at all. Azimuth ≈ 45° (NE), matching real Kennedy/Canaveral
+ * ISS-bound launches.
+ *
+ * Rendezvous framing: the module also picks a plane (RAAN) and launch epoch
+ * so the finished circular orbit sits in the SAME orbital plane as the
+ * (real, propagated) ISS model in starlink.js, a chosen RENDEZVOUS_GAP_DEG
+ * of along-track separation ahead of the rocket — "alongside", not docked.
+ * This is itself found by solving the ISS's own (real) mean-motion/RAAN
+ * formulas for the epoch, not asserted.
+ *
+ * No THREE, no DOM — loads in plain node (test/ascent.test.js), same
+ * pattern as data/starlink.js. Depends on ORRERY.STARLINK for μ, R⊕, the
+ * ISS's real model and epoch — load order in build.js keeps starlink.js
+ * first.
+ */
+window.ORRERY = window.ORRERY || {};
+
+ORRERY.AscentProfile = (function () {
+  'use strict';
+
+  var S = ORRERY.STARLINK;
+  var MU = S.MU;               // km^3/s^2 — same Earth model as starlink.js
+  var RE = S.RE;                // km
+  var G0 = 9.80665e-3;          // km/s^2
+
+  // --- Launch site / target plane -------------------------------------------------
+  var LAUNCH_LAT_DEG = 28.5;                 // Cape Canaveral
+  var TARGET_INC_DEG = S.ISS.incDeg;         // 51.6° — the ISS's real inclination
+  var TARGET_APOGEE_KM = S.ISS.altKm;        // 420 km — the ISS's real altitude
+  var DEG = Math.PI / 180;
+  // sin(az) = cos(i)/cos(lat): the ground-track-max-latitude relation.
+  var AZIMUTH_DEG = Math.asin(Math.cos(TARGET_INC_DEG * DEG) / Math.cos(LAUNCH_LAT_DEG * DEG)) / DEG;
+
+  // --- Vehicle (Falcon-9-class, real-ish public specs) ----------------------------
+  var M1_DRY = 25600, M1_PROP = 411000;          // kg — stage 1 (9 Merlin 1D)
+  var M2_DRY = 4500, M2_PROP = 92670;            // kg — stage 2 (1 Merlin Vacuum)
+  var BURN1 = 155;                                // s — stage-1 burn duration (design constant)
+  var MDOT1 = M1_PROP / BURN1;                    // kg/s
+  var ISP1_SL = 282, ISP1_VAC = 311;              // s — Merlin 1D sea-level/vacuum
+  var SEP_COAST = 4;                              // s — stage separation, unpowered
+  var MDOT2 = 273.7;                              // kg/s — Merlin Vacuum flow rate
+  var ISP2 = 348;                                 // s — vacuum only (stage 2 never sees dense air)
+
+  // --- Atmosphere / drag (simple exponential model) -------------------------------
+  var RHO0 = 1.225, ATMO_H = 8500;                // kg/m^3, m — sea-level density, scale height
+  var CD = 0.3, AREA = 10.75;                     // drag coefficient, m^2 (~3.7 m diameter)
+  var CDA = CD * AREA;
+
+  // --- Pitch program (gravity-turn-SHAPED steering, not closed-loop guidance) -----
+  var T_VERT = 10;                                // s — straight up off the pad
+  var PITCH_T1 = 150;                             // s — window over which pitch eases in
+  var THETA_MAX_DEG = 82;                         // ° from vertical at the end of the window
+
+  // --- The one baked free parameter ------------------------------------------------
+  var T_SECO = 429.535;                            // s — found by bisection, see rebake() below
+  var INTEGRATION_DT = 0.01;                       // s — RK4 step for the baked run (converged:
+                                                    // 0.05/0.02/0.01/0.005 s agree on apogee within ~1 km)
+
+  var RENDEZVOUS_GAP_DEG = 1.5;                    // ° along-track — "alongside", not docked
+
+  function smoothstep(f) { f = f < 0 ? 0 : f > 1 ? 1 : f; return f * f * (3 - 2 * f); }
+  function pitchAngle(t) {
+    if (t < T_VERT) return 0;
+    return (THETA_MAX_DEG * DEG) * smoothstep((t - T_VERT) / (PITCH_T1 - T_VERT));
+  }
+  function pressureFraction(altKm) { return Math.exp(-Math.max(altKm, 0) * 1000 / ATMO_H); }
+  function rho(altKm) { return RHO0 * pressureFraction(altKm); }
+  /** Thrust (kN) from a fixed mass flow + altitude-interpolated Isp: F = mdot·Isp·g0. */
+  function thrustKN(mdot, ispSl, ispVac, altKm) {
+    var isp = ispVac - (ispVac - ispSl) * pressureFraction(altKm);
+    return mdot * isp * G0;
+  }
+
+  /** phase(t) -> 'stage1' | 'sep' | 'stage2' | 'coast', for a given SECO cutoff. */
+  function phaseAt(t, tSeco) {
+    if (t < BURN1) return 'stage1';
+    if (t < BURN1 + SEP_COAST) return 'sep';
+    if (t < tSeco) return 'stage2';
+    return 'coast';
+  }
+
+  /** State derivative: y = [x, y, vx, vy, m] (km, km, km/s, km/s, kg). */
+  function derivative(t, y, tSeco) {
+    var x = y[0], yy = y[1], m = y[4];
+    var r = Math.sqrt(x * x + yy * yy), alt = r - RE;
+    var vx = y[2], vy = y[3], v = Math.sqrt(vx * vx + vy * vy);
+    var rHatX = x / r, rHatY = yy / r;
+    var hHatX = -yy / r, hHatY = x / r;   // prograde tangential (CCW travel)
+    var th = pitchAngle(t);
+    var dirX = Math.cos(th) * rHatX + Math.sin(th) * hHatX;
+    var dirY = Math.cos(th) * rHatY + Math.sin(th) * hHatY;
+
+    var thrustMag = 0, mdot = 0;
+    var phase = phaseAt(t, tSeco);
+    if (phase === 'stage1') { mdot = MDOT1; thrustMag = thrustKN(MDOT1, ISP1_SL, ISP1_VAC, alt); }
+    else if (phase === 'stage2') { mdot = MDOT2; thrustMag = thrustKN(MDOT2, ISP2, ISP2, alt); }
+
+    var g = -MU / (r * r * r);
+    var agX = g * x, agY = g * yy;
+    var atX = (thrustMag / m) * dirX, atY = (thrustMag / m) * dirY;
+    var adX = 0, adY = 0;
+    if (alt < 100 && v > 1e-9) {
+      var vms = v * 1000;
+      var fN = 0.5 * rho(alt) * vms * vms * CDA;             // N
+      var aKms2 = fN / m / 1e6;                              // km/s^2
+      adX = -aKms2 * vx / v; adY = -aKms2 * vy / v;
+    }
+    return [vx, vy, agX + atX + adX, agY + atY + adY, -mdot];
+  }
+
+  function rk4Step(t, y, dt, tSeco) {
+    var k1 = derivative(t, y, tSeco);
+    var y2 = [y[0] + k1[0] * dt / 2, y[1] + k1[1] * dt / 2, y[2] + k1[2] * dt / 2, y[3] + k1[3] * dt / 2, y[4] + k1[4] * dt / 2];
+    var k2 = derivative(t + dt / 2, y2, tSeco);
+    var y3 = [y[0] + k2[0] * dt / 2, y[1] + k2[1] * dt / 2, y[2] + k2[2] * dt / 2, y[3] + k2[3] * dt / 2, y[4] + k2[4] * dt / 2];
+    var k3 = derivative(t + dt / 2, y3, tSeco);
+    var y4 = [y[0] + k3[0] * dt, y[1] + k3[1] * dt, y[2] + k3[2] * dt, y[3] + k3[3] * dt, y[4] + k3[4] * dt];
+    var k4 = derivative(t + dt, y4, tSeco);
+    var out = new Array(5);
+    for (var i = 0; i < 5; i++) out[i] = y[i] + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+    return out;
+  }
+
+  /**
+   * Integrate liftoff → tSeco with the LIVE integrator (RK4, thrust+gravity+
+   * drag). Returns milestones (liftoff, max-Q, stage-1 cutoff, SECO) and a
+   * decimated sample list {t,x,y,vx,vy,m,alt,speed} for playback, plus the
+   * exact final state vector. This is the function both rebake() (the
+   * offline search) and test/ascent.test.js (the pin) call — there is no
+   * separate "private" integrator; what ships is what was searched.
+   */
+  function poweredFlight(tSeco, dt, sampleEvery) {
+    dt = dt || INTEGRATION_DT;
+    sampleEvery = sampleEvery || 20;   // store one sample per N steps (~0.2 s @ dt=0.01)
+    var m0 = M1_DRY + M1_PROP + M2_DRY + M2_PROP;
+    var y = [RE, 0, 0, 0, m0], t = 0, staged = false, step = 0;
+    var milestones = { liftoff: { t: 0, alt: 0, v: 0 } };
+    var maxQ = { q: 0, alt: 0, t: 0 };
+    var samples = [];
+
+    function pushSample() {
+      var r = Math.sqrt(y[0] * y[0] + y[1] * y[1]);
+      samples.push({ t: t, x: y[0], y: y[1], vx: y[2], vy: y[3], m: y[4], alt: r - RE, speed: Math.sqrt(y[2] * y[2] + y[3] * y[3]) });
+    }
+    pushSample();
+
+    while (t < tSeco - dt / 2) {
+      var r = Math.sqrt(y[0] * y[0] + y[1] * y[1]), alt = r - RE;
+      var v = Math.sqrt(y[2] * y[2] + y[3] * y[3]);
+      if (!staged && t >= BURN1) {
+        y[4] -= M1_DRY;   // jettison stage-1 dry mass at MECO
+        staged = true;
+        milestones.stage1Cutoff = { t: t, alt: alt, v: v };
+      }
+      if (alt < 60) {
+        var q = 0.5 * rho(alt) * (v * 1000) * (v * 1000);   // Pa
+        if (q > maxQ.q) maxQ = { q: q, alt: alt, t: t };
+      }
+      y = rk4Step(t, y, dt, tSeco);
+      t += dt;
+      step++;
+      if (step % sampleEvery === 0) pushSample();
+    }
+    var rf = Math.sqrt(y[0] * y[0] + y[1] * y[1]), vf = Math.sqrt(y[2] * y[2] + y[3] * y[3]);
+    milestones.seco = { t: tSeco, alt: rf - RE, v: vf, m: y[4] };
+    pushSample();
+
+    return { finalState: y, milestones: milestones, maxQ: maxQ, samples: samples, tSeco: tSeco };
+  }
+
+  /** Classical 2D orbital elements from a geocentric state vector. */
+  function elementsFromState(x, y, vx, vy) {
+    var r = Math.sqrt(x * x + y * y), v2 = vx * vx + vy * vy;
+    var energy = v2 / 2 - MU / r;
+    var a = -MU / (2 * energy);
+    var h = x * vy - y * vx;                       // specific angular momentum (2D scalar)
+    var e = Math.sqrt(Math.max(0, 1 - (h * h) / (MU * a)));
+    var rdot = (x * vx + y * vy) / r;
+    var cosNu = e > 1e-9 ? Math.min(1, Math.max(-1, (a * (1 - e * e) / r - 1) / e)) : 1;
+    var nu = Math.acos(cosNu);
+    if (rdot < 0) nu = 2 * Math.PI - nu;
+    var theta = Math.atan2(y, x);
+    var omega = theta - nu;
+    return { a: a, e: e, nu0: nu, omega: omega, h: h };
+  }
+
+  /** Closed-form Kepler propagation of a 2D conic by dtSeconds from nu0. */
+  function keplerPropagate(el, dtSeconds) {
+    var n = Math.sqrt(MU / (el.a * el.a * el.a));
+    var E0 = 2 * Math.atan2(Math.sqrt(1 - el.e) * Math.sin(el.nu0 / 2), Math.sqrt(1 + el.e) * Math.cos(el.nu0 / 2));
+    var M0 = E0 - el.e * Math.sin(E0);
+    var M = M0 + n * dtSeconds;
+    var E = M;   // Newton from E0=M: fine for the low eccentricities here (e < 0.1)
+    for (var i = 0; i < 20; i++) {
+      var f = E - el.e * Math.sin(E) - M;
+      var fp = 1 - el.e * Math.cos(E);
+      var dE = f / fp;
+      E -= dE;
+      if (Math.abs(dE) < 1e-12) break;
+    }
+    var r = el.a * (1 - el.e * Math.cos(E));
+    var nu = 2 * Math.atan2(Math.sqrt(1 + el.e) * Math.sin(E / 2), Math.sqrt(1 - el.e) * Math.cos(E / 2));
+    var theta = el.omega + nu;
+    var rdot = (n * el.a * el.e * Math.sin(E)) / (1 - el.e * Math.cos(E));
+    var rnudot = el.h / r;   // r·dθ/dt = h/r
+    var x = r * Math.cos(theta), y = r * Math.sin(theta);
+    var vx = rdot * Math.cos(theta) - rnudot * Math.sin(theta);
+    var vy = rdot * Math.sin(theta) + rnudot * Math.cos(theta);
+    return { x: x, y: y, vx: vx, vy: vy, r: r, speed: Math.sqrt(vx * vx + vy * vy), theta: theta, nu: nu };
+  }
+
+  /** Time from nu0 to apogee (nu=π) along a conic with mean motion n. */
+  function timeToApogee(el) {
+    var n = Math.sqrt(MU / (el.a * el.a * el.a));
+    var E0 = 2 * Math.atan2(Math.sqrt(1 - el.e) * Math.sin(el.nu0 / 2), Math.sqrt(1 + el.e) * Math.cos(el.nu0 / 2));
+    var M0 = E0 - el.e * Math.sin(E0);
+    return (Math.PI - M0) / n;   // apogee: E=π, M=π
+  }
+
+  /**
+   * Bisect T_SECO so the resulting transfer orbit's apogee lands exactly at
+   * targetApogeeKm. This is what FOUND the 429.535 s baked above — kept here
+   * (not thrown away, per the rebake pattern) so the pin test can re-derive
+   * it independently rather than trust the hardcoded constant blindly.
+   */
+  function bisectSeco(targetApogeeKm, dt) {
+    var target = RE + targetApogeeKm;
+    function apogeeR(tSeco) {
+      var f = poweredFlight(tSeco, dt, 1e9).finalState;   // sampleEvery huge: skip sample storage
+      var el = elementsFromState(f[0], f[1], f[2], f[3]);
+      return el.a * (1 + el.e);
+    }
+    var lo = BURN1 + SEP_COAST + 5, hi = BURN1 + SEP_COAST + (M2_PROP / MDOT2) * 0.98;
+    var eLo = apogeeR(lo) - target, eHi = apogeeR(hi) - target;
+    if ((eLo > 0) === (eHi > 0)) {
+      // fall back to a narrower bracket around the known-good region
+      lo = 427; hi = 430.5;
+      eLo = apogeeR(lo) - target; eHi = apogeeR(hi) - target;
+    }
+    for (var i = 0; i < 30; i++) {
+      var mid = (lo + hi) / 2, eMid = apogeeR(mid) - target;
+      if ((eMid > 0) === (eLo > 0)) { lo = mid; eLo = eMid; } else { hi = mid; }
+    }
+    return (lo + hi) / 2;
+  }
+
+  /** In-plane (x,y) km -> equatorial ECI km, same rotation convention as starlink.js satPosKm. */
+  function toECI(x, y, incDeg, omegaAscDeg) {
+    var r = Math.sqrt(x * x + y * y), u = Math.atan2(y, x);
+    var inc = incDeg * DEG, raan = omegaAscDeg * DEG;
+    var ci = Math.cos(inc), si = Math.sin(inc);
+    var cO = Math.cos(raan), sO = Math.sin(raan);
+    var cu = Math.cos(u), su = Math.sin(u);
+    return {
+      x: r * (cO * cu - sO * su * ci),
+      y: r * (sO * cu + cO * su * ci),
+      z: r * (su * si)
+    };
+  }
+
+  /**
+   * The bake: run the powered flight, derive the coast/circularization/
+   * rendezvous framing, and package one PROFILE object. Runs once at module
+   * load (a few tens of ms — ~43k RK4 steps at dt=0.01 over T_SECO≈430 s).
+   */
+  function build() {
+    var flight = poweredFlight(T_SECO, INTEGRATION_DT);
+    var f = flight.finalState;
+    var el = elementsFromState(f[0], f[1], f[2], f[3]);
+    var rApo = el.a * (1 + el.e), rPeri = el.a * (1 - el.e);
+    var vApo = el.h / rApo;
+    var vCirc = Math.sqrt(MU / rApo);
+    var tToApogee = timeToApogee(el);
+    var thetaApogeeDeg = ((el.omega + Math.PI) / DEG) % 360;
+    var missionDurationSeconds = T_SECO + tToApogee;
+
+    // Rendezvous framing: pick the ISS epoch whose real (starlink.js) argument
+    // of latitude sits RENDEZVOUS_GAP_DEG ahead of our circularization point,
+    // then set our own plane's RAAN to the ISS's real RAAN at that instant —
+    // same inclination + same RAAN + a small along-track gap = "alongside".
+    var targetUdeg = ((thetaApogeeDeg - RENDEZVOUS_GAP_DEG) % 360 + 360) % 360;
+    var nIssRadPerDay = S.meanMotion(TARGET_APOGEE_KM);
+    var periodDays = S.periodMin(TARGET_APOGEE_KM) / 1440;
+    var dtDays = (targetUdeg * DEG) / nIssRadPerDay;
+    dtDays = ((dtDays % periodDays) + periodDays) % periodDays;
+    var jdInsert = S.EPOCH + dtDays;
+    var omegaAscentDeg = S.raanRateDegPerDay(TARGET_APOGEE_KM, TARGET_INC_DEG) * dtDays;
+    var jd0 = jdInsert - missionDurationSeconds / 86400;
+
+    var milestones = flight.milestones;
+    milestones.stageIgnition2 = { t: BURN1 + SEP_COAST };
+    milestones.apogee = { t: missionDurationSeconds, alt: rApo - RE, v: vApo };
+    milestones.circularization = {
+      t: missionDurationSeconds, dv: vCirc - vApo, altKm: rApo - RE, vBefore: vApo, vAfter: vCirc
+    };
+    milestones.finalOrbit = { altKm: rApo - RE, v: vCirc, periodMin: S.periodMin(rApo - RE) };
+
+    return {
+      constants: {
+        BURN1: BURN1, SEP_COAST: SEP_COAST, T_SECO: T_SECO, THETA_MAX_DEG: THETA_MAX_DEG,
+        PITCH_T1: PITCH_T1, T_VERT: T_VERT, AZIMUTH_DEG: AZIMUTH_DEG,
+        LAUNCH_LAT_DEG: LAUNCH_LAT_DEG, TARGET_INC_DEG: TARGET_INC_DEG, TARGET_APOGEE_KM: TARGET_APOGEE_KM,
+        RENDEZVOUS_GAP_DEG: RENDEZVOUS_GAP_DEG
+      },
+      milestones: milestones,
+      maxQ: flight.maxQ,
+      elements: el,
+      apogee: { r: rApo, alt: rApo - RE, v: vApo, t: missionDurationSeconds },
+      perigeeAltKm: rPeri - RE,
+      vCirc: vCirc,
+      tToApogee: tToApogee,
+      missionDurationSeconds: missionDurationSeconds,
+      omegaAscentDeg: omegaAscentDeg,
+      jdInsert: jdInsert,
+      jd0: jd0,
+      poweredSamples: flight.samples
+    };
+  }
+
+  var PROFILE = build();
+
+  /**
+   * Rocket state at mission-elapsed seconds `t` (0 at liftoff). Powered
+   * phase interpolates the baked samples; coast is exact closed-form Kepler;
+   * past the mission end it keeps circling at the final circular rate
+   * forever (the "parked alongside the ISS" epilogue) — one function for
+   * the whole ride, ascent.js never special-cases the ending.
+   */
+  function stateAtMissionTime(t) {
+    if (t <= PROFILE.constants.T_SECO) {
+      var s = PROFILE.poweredSamples;
+      if (t <= s[0].t) return sampleToState(s[0], phaseLabel(t));
+      for (var i = 1; i < s.length; i++) {
+        if (t <= s[i].t) {
+          var a = s[i - 1], b = s[i], f = (t - a.t) / (b.t - a.t || 1);
+          return {
+            t: t, x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f,
+            alt: a.alt + (b.alt - a.alt) * f, speed: a.speed + (b.speed - a.speed) * f,
+            m: a.m + (b.m - a.m) * f, phase: phaseLabel(t)
+          };
+        }
+      }
+      var last = s[s.length - 1];
+      return sampleToState(last, phaseLabel(t));
+    }
+    if (t < PROFILE.missionDurationSeconds) {
+      var k = keplerPropagate(PROFILE.elements, t - PROFILE.constants.T_SECO);
+      return { t: t, x: k.x, y: k.y, alt: k.r - RE, speed: k.speed, m: PROFILE.milestones.seco.m, phase: 'coast' };
+    }
+    // Parked: circular orbit continuing indefinitely from the circularization point.
+    // (t >= missionDurationSeconds here; at the exact instant this is continuous with
+    // the coast branch above — same r, same speed, purely tangential.)
+    var nFinal = Math.sqrt(MU / (PROFILE.apogee.r * PROFILE.apogee.r * PROFILE.apogee.r));
+    var thetaFinal = PROFILE.elements.omega + Math.PI + nFinal * (t - PROFILE.missionDurationSeconds);
+    var rFinal = PROFILE.apogee.r;
+    return {
+      t: t, x: rFinal * Math.cos(thetaFinal), y: rFinal * Math.sin(thetaFinal),
+      alt: rFinal - RE, speed: PROFILE.vCirc, m: PROFILE.milestones.seco.m, phase: 'parked'
+    };
+  }
+  function sampleToState(s, phase) {
+    return { t: s.t, x: s.x, y: s.y, alt: s.alt, speed: s.speed, m: s.m, phase: phase };
+  }
+  function phaseLabel(t) {
+    var c = PROFILE.constants;
+    if (t < c.T_VERT) return 'liftoff';
+    if (t < c.BURN1) return 'stage1';
+    if (t < c.BURN1 + c.SEP_COAST) return 'sep';
+    return 'stage2';
+  }
+
+  return {
+    MU: MU, RE: RE,
+    poweredFlight: poweredFlight,
+    elementsFromState: elementsFromState,
+    keplerPropagate: keplerPropagate,
+    timeToApogee: timeToApogee,
+    bisectSeco: bisectSeco,
+    toECI: toECI,
+    stateAtMissionTime: stateAtMissionTime,
+    PROFILE: PROFILE
+  };
+})();
+
+
 /* ========== src/physics/kepler.js ========== */
 /**
  * kepler.js — Orbital mechanics.
@@ -7466,6 +7982,295 @@ ORRERY.Lagrange = (function () {
   }
 
   return { SYSTEMS: SYSTEMS, points: points, point: point };
+})();
+
+
+/* ========== src/data/zoo.js ========== */
+/**
+ * zoo.js — Level 29: The Orbital Zoo. The MEO/GEO/sun-sync/Molniya family
+ * layer that answers "why is this orbit shaped this way" for everything
+ * above LEO. Real orbital parameters, synthetic per-satellite catalogs (no
+ * TLEs, zero network) — same honesty contract as `starlink.js`, which this
+ * module reuses for Earth's constants and the circular-orbit + J2 machinery
+ * (MU, RE, J2, radiusKm, vCirc, periodMin, meanMotion, raanRateDegPerDay,
+ * satPosKm, earthSpinFraction, fixedLongitudeDeg — all shape-compatible
+ * with the shell descriptors below, so GPS and the sun-synchronous family
+ * are plotted with `ORRERY.STARLINK.satPosKm` directly). Kept as its own
+ * module rather than folded into starlink.js because it is a genuinely
+ * different regime (elliptical propagation, fixed-longitude slots, shadow
+ * geometry) even though it leans on starlink.js's constants throughout.
+ *
+ * New physics beyond starlink.js's circular/J2 pair:
+ *
+ *   Elliptical J2 secular rates (Vallado eq. 9-38/9-39, generalized from
+ *   starlink.js's circular special case via the semi-latus rectum p =
+ *   a(1-e²) in place of the circular radius r):
+ *     node (RAAN)          Ω̇ = -(3/2) n J₂ (Rₑ/p)² cos i
+ *     argument of perigee  ω̇ =  (3/4) n J₂ (Rₑ/p)² (5cos²i - 1)
+ *   ω̇ = 0 exactly at the CRITICAL INCLINATION i = arccos(1/√5) ≈ 63.435°
+ *   (5cos²i = 1): Molniya's whole reason for existing at that inclination
+ *   is that its argument of perigee — and therefore the latitude at which
+ *   apogee dwells — never drifts, so the northern-hemisphere loiter the
+ *   orbit is built for doesn't degrade over the mission. The node still
+ *   precesses at the critical inclination (only the apsidal line is
+ *   pinned); nothing about Ω̇ is special there.
+ *
+ *   Elliptical propagation reuses `ORRERY.Kepler.heliocentric` — its
+ *   E - e·sin(E) = M solver and orbital-plane rotation are pure geometry,
+ *   indifferent to whose focus is at the origin or what units `a` carries.
+ *   Feeding it a km-scale, Earth-centered element set (built by
+ *   `molniyaElements` below, in the same [a,ȧ,e,ė,I,İ,L,L̇,ϖ,ϖ̇,Ω,Ω̇]
+ *   layout as bodies.js) makes it a perfectly good geocentric elliptical
+ *   propagator for free — no second Kepler solver to maintain or drift out
+ *   of sync with the one everything else in the app trusts.
+ *
+ *   Fixed-longitude GEO slots: a real operator doesn't sit at a Walker
+ *   phase, it sits at a filed longitude. `geoSlotPosKm` places a slot by
+ *   inertial angle = longitude + current Earth spin phase — the same
+ *   identity `fixedLongitudeDeg` inverts, so `fixedLongitudeDeg(geoSlotPosKm
+ *   (lon, jd), jd) === lon` for any jd (the "GEO slots hold their longitude"
+ *   test below).
+ *
+ *   Earth-shadow cylinder test: a satellite is eclipsed when it is on the
+ *   night side of the sun-Earth line (proj < 0) AND within Rₑ of that line
+ *   (perp < Rₑ) — the simple cylinder, not the full umbra cone eclipse.js
+ *   uses for the Moon (that machinery answers a different question: exact
+ *   contact instants for a body big enough for penumbra/umbra to matter at
+ *   Earth's distance from the Sun; here we just need "is this satellite
+ *   dark right now").
+ *
+ * Frame throughout: Earth-centered inertial equatorial, same as
+ * starlink.js (x/y in the equatorial plane, z north). No THREE, no DOM —
+ * loads in plain node for the unit tests exactly like starlink.js.
+ */
+window.ORRERY = window.ORRERY || {};
+
+ORRERY.ZOO = (function () {
+  'use strict';
+
+  var DEG = Math.PI / 180;
+
+  function S() { return ORRERY.STARLINK; }
+
+  // ---- Elliptical J2 secular rates (generalizes starlink.js's circular case) ----
+
+  /** Semi-major axis (km) that gives an exact period (minutes) via Kepler III. */
+  function aFromPeriodMin(periodMin) {
+    var Tsec = periodMin * 60;
+    return Math.cbrt(S().MU * Tsec * Tsec / (4 * Math.PI * Math.PI));
+  }
+
+  function semiLatusRectumKm(a, e) { return a * (1 - e * e); }
+
+  function meanMotionDegPerDay(a) {
+    return Math.sqrt(S().MU / (a * a * a)) * 86400 / DEG;
+  }
+
+  /** Node precession, deg/day — Vallado 9-38 with p in place of a circular r. */
+  function raanRateEccDegPerDay(a, e, incDeg) {
+    var n = Math.sqrt(S().MU / (a * a * a));
+    var p = semiLatusRectumKm(a, e);
+    return -1.5 * n * S().J2 * Math.pow(S().RE / p, 2) * Math.cos(incDeg * DEG) * 86400 / DEG;
+  }
+
+  /** Argument-of-perigee precession, deg/day — Vallado 9-39; zero at critical inclination. */
+  function argPeriRateDegPerDay(a, e, incDeg) {
+    var n = Math.sqrt(S().MU / (a * a * a));
+    var p = semiLatusRectumKm(a, e);
+    return 0.75 * n * S().J2 * Math.pow(S().RE / p, 2) *
+      (5 * Math.pow(Math.cos(incDeg * DEG), 2) - 1) * 86400 / DEG;
+  }
+
+  /** The critical inclination: 5cos²i = 1, so argPeriRateDegPerDay(_, _, this) ≡ 0. */
+  var CRIT_INC_DEG = Math.acos(1 / Math.sqrt(5)) / DEG;
+
+  // ---- GPS / MEO — semi-synchronous, 6 planes × 55° ------------------------------
+
+  // Real Block-II baseline: 24 slots, 6 planes 60° apart, 55° inclination,
+  // ~11h58m period. Chosen so 2 orbits ≈ 1 sidereal day: the ground track
+  // very nearly repeats daily, which is WHY this altitude (not a random
+  // MEO shell) — a predictable, repeating footprint is what makes a
+  // navigation constellation plannable. `f` is a synthetic inter-plane
+  // phasing factor (no operational slot assignments shipped).
+  var GPS = {
+    key: 'gps', name: 'GPS / MEO', color: '#8FE3B0',
+    altKm: 20182, incDeg: 55, planes: 6, perPlane: 4, f: 1
+  };
+
+  // ---- Sun-synchronous — retrograde, node keeps pace with the Sun ----------------
+
+  // 700 km / 98.19°: the classic Earth-observation shell (Landsat/Sentinel-
+  // class altitudes). At this specific retrograde inclination the J2 node
+  // rate exactly matches the Earth's ~1°/day revolution around the Sun
+  // (test below asserts the match against starlink.js's own J2 formula),
+  // so every satellite in the family crosses the equator at the same local
+  // solar time on every orbit, forever — consistent lighting for imagery.
+  var SUNSYNC = {
+    key: 'sunsync', name: 'Sun-synchronous', color: '#7EC8E3',
+    altKm: 700, incDeg: 98.19, planes: 6, perPlane: 3, f: 1
+  };
+
+  // ---- Molniya — the critical-inclination apogee-dwell orbit ---------------------
+
+  // e = 0.74 and a 12 h period are the classic Molniya numbers (the Soviet
+  // comsat system this orbit is named for); the semi-major axis is derived
+  // from the period via Kepler III rather than hand-picked, so it stays
+  // exactly self-consistent with `periodMin` below. Argument of perigee
+  // 270° puts perigee in the south and lets apogee dwell over the far
+  // north (argument of latitude 90° at apogee ⇒ latitude ≈ inclination,
+  // ~63.4°N) for hours per orbit — the point of the whole design: high-
+  // latitude coverage a GEO bird (stuck over the equator) cannot reach.
+  // Three planes 120° apart, two satellites per plane phased 180° in mean
+  // anomaly, mirrors the real system's handoff scheme: as one satellite's
+  // dwell ends, the next is rising to take over continuous coverage.
+  var MOLNIYA = {
+    key: 'molniya', name: 'Molniya', color: '#F27FB0',
+    e: 0.74, incDeg: CRIT_INC_DEG, argPeriDeg: 270,
+    periodMin: 720, planes: 3, perPlane: 2
+  };
+  MOLNIYA.a = aFromPeriodMin(MOLNIYA.periodMin);
+
+  /** JPL-style element array [a,ȧ,e,ė,I,İ,L,L̇,ϖ,ϖ̇,Ω,Ω̇] for one Molniya slot. */
+  function molniyaElements(planeIdx, satIdx) {
+    var a = MOLNIYA.a, e = MOLNIYA.e, inc = MOLNIYA.incDeg;
+    var century = 36525; // days per Julian century — matches Kepler.elementsAt's T
+    var nDay = meanMotionDegPerDay(a);
+    var raanDot = raanRateEccDegPerDay(a, e, inc);
+    var argDot = argPeriRateDegPerDay(a, e, inc); // ≈ 0 at the critical inclination
+    var node0 = (planeIdx / MOLNIYA.planes) * 360;
+    var peri0 = (node0 + MOLNIYA.argPeriDeg) % 360;               // ϖ = Ω + ω
+    var M0 = (satIdx / MOLNIYA.perPlane) * 360;
+    var L0 = (peri0 + M0) % 360;                                   // L = ϖ + M
+    return [
+      a, 0,
+      e, 0,
+      inc, 0,
+      L0, (nDay + raanDot + argDot) * century,
+      peri0, (raanDot + argDot) * century,
+      node0, raanDot * century
+    ];
+  }
+
+  /** Geocentric equatorial km position of Molniya slot (plane, sat) at jd. */
+  function molniyaPosKm(planeIdx, satIdx, jd) {
+    return ORRERY.Kepler.heliocentric(molniyaElements(planeIdx, satIdx), jd);
+  }
+
+  /** Static ellipse shape (km) for drawing an orbit line — n+1 points, closed. */
+  function orbitShapeKm(a, e, incDeg, argPeriDeg, nodeDeg, n) {
+    var omega = argPeriDeg * DEG, node = nodeDeg * DEG, inc = incDeg * DEG;
+    var cw = Math.cos(omega), sw = Math.sin(omega);
+    var cn = Math.cos(node), sn = Math.sin(node);
+    var ci = Math.cos(inc), si = Math.sin(inc);
+    var pts = [];
+    for (var i = 0; i <= n; i++) {
+      var E = (i / n) * 2 * Math.PI;
+      var xp = a * (Math.cos(E) - e);
+      var yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+      pts.push({
+        x: (cw * cn - sw * sn * ci) * xp + (-sw * cn - cw * sn * ci) * yp,
+        y: (cw * sn + sw * cn * ci) * xp + (-sw * sn + cw * cn * ci) * yp,
+        z: (sw * si) * xp + (cw * si) * yp
+      });
+    }
+    return pts;
+  }
+
+  // ---- GEO — named slots + the disposal graveyard --------------------------------
+
+  // A handful of REAL geostationary operators (public longitude filings,
+  // approximate as of 2024–2026 — GEO slots do get renegotiated). Weather
+  // birds bracket the globe for continuous imagery; the comms/TV birds are
+  // included for scale and variety, not completeness.
+  // GOES-19 (GOES-East) is first on purpose: it's the flagship equinox-
+  // eclipse example in the GEO dossier (and the one the shadow-crossing
+  // e2e spec/debug() hook reads), so keeping it at index 0 means "the
+  // named GEO slot" always means the same, documented satellite.
+  var GEO_SLOTS = [
+    { name: 'GOES-19 (GOES-East)', lonDeg: -75.2, kind: 'weather', op: 'NOAA' },
+    { name: 'GOES-18 (GOES-West)', lonDeg: -137.2, kind: 'weather', op: 'NOAA' },
+    { name: 'Meteosat-11', lonDeg: 0.0, kind: 'weather', op: 'EUMETSAT' },
+    { name: 'Himawari-9', lonDeg: 140.7, kind: 'weather', op: 'JMA' },
+    { name: 'Astra 19.2°E', lonDeg: 19.2, kind: 'tv', op: 'SES' },
+    { name: 'Intelsat 903', lonDeg: -34.5, kind: 'comms', op: 'Intelsat' },
+    { name: 'DIRECTV 12', lonDeg: -102.8, kind: 'tv', op: 'DIRECTV' }
+  ];
+
+  /** Fixed-longitude GEO position (km, equatorial): loni = lon + spin phase. */
+  function geoSlotPosKm(lonDeg, jd) {
+    var spin = S().earthSpinFraction(jd) * 2 * Math.PI;
+    var loni = lonDeg * DEG + spin;
+    var r = S().radiusKm(S().GEO.altKm);
+    return { x: r * Math.cos(loni), y: r * Math.sin(loni), z: 0 };
+  }
+
+  // IADC guideline: retire at least ~300 km above GEO so the ring stays
+  // clear for operational traffic. Schematic markers, not named — real
+  // graveyarded hardware isn't individually catalogued here.
+  var GRAVEYARD = {
+    key: 'graveyard', name: 'GEO graveyard', color: '#8A8F99',
+    altKm: 36086, incDeg: 0, planes: 1, perPlane: 8, f: 0
+  };
+
+  // ---- Ground tracks ---------------------------------------------------------------
+
+  /** Earth-fixed {lat, lon} samples of `posFn(t)` over `spanDays` from jd0. */
+  function groundTrack(posFn, jd0, spanDays, steps) {
+    var pts = [];
+    for (var i = 0; i <= steps; i++) {
+      var t = jd0 + (i / steps) * spanDays;
+      var p = posFn(t);
+      var r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+      var lat = Math.asin(Math.max(-1, Math.min(1, p.z / r))) / DEG;
+      pts.push({ lat: lat, lon: S().fixedLongitudeDeg(p, t) });
+    }
+    return pts;
+  }
+
+  // ---- Earth-shadow cylinder ---------------------------------------------------------
+
+  var OBLIQUITY_DEG = 23.439281; // mean J2000 obliquity — matches the app's tilt elsewhere
+
+  /** Unit vector from Earth toward the Sun, in the equatorial (z-north) frame. */
+  function sunDirEquatorial(earthEl, jd) {
+    var h = ORRERY.Kepler.heliocentric(earthEl, jd);
+    var sx = -h.x, sy = -h.y, sz = -h.z;             // Earth → Sun, ecliptic frame
+    var eps = OBLIQUITY_DEG * DEG;
+    var yeq = sy * Math.cos(eps) - sz * Math.sin(eps);
+    var zeq = sy * Math.sin(eps) + sz * Math.cos(eps);
+    var n = Math.sqrt(sx * sx + yeq * yeq + zeq * zeq);
+    return { x: sx / n, y: yeq / n, z: zeq / n };
+  }
+
+  /** True when `pos` (km, equatorial) sits inside Earth's shadow cylinder. */
+  function inShadow(pos, sunDir) {
+    var proj = pos.x * sunDir.x + pos.y * sunDir.y + pos.z * sunDir.z;
+    if (proj >= 0) return false;                     // day side of the sun-Earth line
+    var px = pos.x - proj * sunDir.x, py = pos.y - proj * sunDir.y, pz = pos.z - proj * sunDir.z;
+    var perp = Math.sqrt(px * px + py * py + pz * pz);
+    return perp < S().RE;
+  }
+
+  return {
+    CRIT_INC_DEG: CRIT_INC_DEG,
+    GPS: GPS,
+    SUNSYNC: SUNSYNC,
+    MOLNIYA: MOLNIYA,
+    GEO_SLOTS: GEO_SLOTS,
+    GRAVEYARD: GRAVEYARD,
+    aFromPeriodMin: aFromPeriodMin,
+    semiLatusRectumKm: semiLatusRectumKm,
+    meanMotionDegPerDay: meanMotionDegPerDay,
+    raanRateEccDegPerDay: raanRateEccDegPerDay,
+    argPeriRateDegPerDay: argPeriRateDegPerDay,
+    molniyaElements: molniyaElements,
+    molniyaPosKm: molniyaPosKm,
+    orbitShapeKm: orbitShapeKm,
+    geoSlotPosKm: geoSlotPosKm,
+    groundTrack: groundTrack,
+    sunDirEquatorial: sunDirEquatorial,
+    inShadow: inShadow
+  };
 })();
 
 
@@ -9762,6 +10567,19 @@ ORRERY.Cosmos = (function () {
  * while focused on Earth (the mirror of the cosmos wheel-out). Exit (Esc,
  * the HUD button, or wheeling out past the mode's max distance) restores
  * the heliocentric camera pose exactly via an instant CameraPath flight.
+ *
+ * Level 29 (Orbital Zoo) additions live here as CONTENT only — the family
+ * physics/catalogs are in `data/zoo.js`. GPS/MEO and the sun-synchronous
+ * shell reuse the exact same circular + J2 machinery as the Starlink
+ * shells above (`S.satPosKm`); Molniya is genuinely different (elliptical,
+ * propagated via `ORRERY.Kepler.heliocentric` at km scale) and gets its
+ * own render path. GEO gained named real slots (replacing the old 12
+ * schematic markers) plus a graveyard ring, and every zoo family dims
+ * while inside Earth's shadow cylinder (`Z.inShadow`). Selecting a family
+ * (legend or a 3D label) draws its ground track on the globe — baked once
+ * as Earth-fixed {lat,lon} pairs, then re-projected every tick through the
+ * current spin phase, so the track visually stays painted on the turning
+ * surface exactly like the GEO-hangs-still money shot generalizes.
  */
 window.ORRERY = window.ORRERY || {};
 
@@ -9774,7 +10592,7 @@ ORRERY.EarthOrbit = (function () {
   var MAX_D = 620;                // past the Moon (384.4 units)
   var ENTER_VIEW = { x: 0, y: 40, z: 105 };   // Earth + LEO swarm + GEO ring
 
-  var ctx = null, S = null, K = null;
+  var ctx = null, S = null, K = null, Z = null;
   var active = false, built = false;
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -9783,12 +10601,23 @@ ORRERY.EarthOrbit = (function () {
   var earthMesh = null, clouds = null, sunGlow = null, moonMesh = null;
   var shellsR = [];               // { shell, pts, attr }
   var issSprite = null, issShell = null;
-  var geoPts = null, geoAttr = null, geoShell = null;
+  var geoRing = null;             // the amber outline (unchanged, still "the GEO ring")
   var labels = [], dom = {}, cardLive = null;
   var saved = null;               // camera/controls/timebar snapshot
   var earthEl = null;
   var oversIn = 0, oversOut = 0, tAnim = 0;
   var sunDir = null, vTmp = null;
+  var sunDirEqKm = null;          // Earth→Sun unit vector, equatorial km frame (Z.inShadow input)
+
+  // --- Level 29: Orbital Zoo state ------------------------------------------------
+  var zooShellsR = [];            // { family, pts, attr, colorAttr, base } — GPS/sun-sync/graveyard
+  var molPts = null, molAttr = null, molColorAttr = null, molBase = null;
+  var molOrbitLines = [];
+  var geoSlots = [];              // { slot, sprite }
+  var graveyardRing = null;
+  var trackLine = null, trackAttr = null, trackLatLon = null;
+  var TRACK_STEPS = 220;
+  var TRACK_R = 6.40;             // scene units: just above the 6.371 surface, below the 6.448 cloud deck
 
   // Own minutes-scale rates (days per real second)
   var RATES = [
@@ -9935,29 +10764,19 @@ ORRERY.EarthOrbit = (function () {
     issSprite.scale.setScalar(1.6);
     frame.add(issSprite);
 
-    // GEO — the ring line plus 12 schematic marker satellites that rotate
-    // with the Earth (their mean motion IS the sidereal spin — the point).
-    geoShell = { altKm: S.GEO.altKm, incDeg: 0, planes: 1, perPlane: 12, f: 0 };
+    // GEO — the amber ring outline. The 12 schematic marker satellites this
+    // used to carry are now the real named slots (Level 29, buildGeoSlots).
     var rGeo = S.radiusKm(S.GEO.altKm) * KM;
     var ringPts = [];
     for (var i = 0; i <= 128; i++) {
       var a = (i / 128) * Math.PI * 2;
       ringPts.push(new THREE.Vector3(Math.cos(a) * rGeo, 0, Math.sin(a) * rGeo));
     }
-    var ring = new THREE.Line(
+    geoRing = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(ringPts),
       new THREE.LineBasicMaterial({ color: 0xF2A63C, transparent: true, opacity: 0.35 })
     );
-    frame.add(ring);
-    geoAttr = new THREE.BufferAttribute(new Float32Array(12 * 3), 3);
-    var geoGeo = new THREE.BufferGeometry();
-    geoGeo.setAttribute('position', geoAttr);
-    geoPts = new THREE.Points(geoGeo, new THREE.PointsMaterial({
-      color: 0xF2A63C, size: 3.2, sizeAttenuation: false,
-      transparent: true, opacity: 0.95, depthWrite: false
-    }));
-    geoPts.frustumCulled = false;
-    frame.add(geoPts);
+    frame.add(geoRing);
 
     // Moon — true distance and period, schematic phase (honestly labeled).
     moonMesh = new THREE.Mesh(
@@ -9973,6 +10792,145 @@ ORRERY.EarthOrbit = (function () {
     }));
     sunGlow.scale.setScalar(320);
     root.add(sunGlow);
+  }
+
+  // --- Level 29: Orbital Zoo scene content -----------------------------------------------
+  // GPS/MEO, sun-sync and the graveyard are circular Walker families exactly
+  // like the Starlink shells above — S.satPosKm is shape-generic, so they
+  // reuse it directly. Molniya is elliptical and gets its own points below.
+  // Every family here (plus the named GEO slots) dims per-vertex/per-sprite
+  // while inside Earth's shadow cylinder (Z.inShadow), tick()'s job.
+  function buildZooShell(family) {
+    var n = S.shellCount(family);
+    var attr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var colorAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', attr);
+    geo.setAttribute('color', colorAttr);
+    var mat = new THREE.PointsMaterial({
+      size: 2.4, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.9, depthWrite: false
+    });
+    var pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    frame.add(pts);
+    var base = new THREE.Color(family.color);
+    zooShellsR.push({ family: family, pts: pts, attr: attr, colorAttr: colorAttr, base: base });
+  }
+
+  function buildMolniya() {
+    var n = Z.MOLNIYA.planes * Z.MOLNIYA.perPlane;
+    molAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    molColorAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', molAttr);
+    geo.setAttribute('color', molColorAttr);
+    molPts = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: 3, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.95, depthWrite: false
+    }));
+    molPts.frustumCulled = false;
+    frame.add(molPts);
+    molBase = new THREE.Color(Z.MOLNIYA.color);
+
+    // Decorative orbit ellipses (one per plane) — static at epoch; the J2
+    // apsidal drift is ~0 by design and the node drift is too slow to
+    // matter visually, so redrawing every frame would be wasted work.
+    for (var p = 0; p < Z.MOLNIYA.planes; p++) {
+      var node0 = (p / Z.MOLNIYA.planes) * 360;
+      var shapePts = Z.orbitShapeKm(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg, Z.MOLNIYA.argPeriDeg, node0, 96)
+        .map(function (q) { return new THREE.Vector3(q.x * KM, q.z * KM, -q.y * KM); });
+      var line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(shapePts),
+        new THREE.LineBasicMaterial({ color: Z.MOLNIYA.color, transparent: true, opacity: 0.22 })
+      );
+      frame.add(line);
+      molOrbitLines.push(line);
+    }
+  }
+
+  function buildGeoSlots() {
+    Z.GEO_SLOTS.forEach(function (slot) {
+      var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: ORRERY.Textures.glowSprite('rgba(242,166,60,0.95)', 'rgba(242,166,60,0.28)'),
+        blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+      }));
+      sprite.scale.setScalar(2.0);
+      frame.add(sprite);
+      geoSlots.push({ slot: slot, sprite: sprite });
+      addLabel(slot.name, function (out, jd) {
+        eqToLocal(Z.geoSlotPosKm(slot.lonDeg, jd), out);
+        return frame.localToWorld(out);
+      }, function () { return geoSlotDossier(slot); }, '#F2A63C');
+    });
+
+    // Graveyard ring outline (schematic, ~300 km above GEO — IADC guideline)
+    var rGrave = S.radiusKm(Z.GRAVEYARD.altKm) * KM;
+    var pts = [];
+    for (var i = 0; i <= 96; i++) {
+      var a = (i / 96) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * rGrave, 0, Math.sin(a) * rGrave));
+    }
+    graveyardRing = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: Z.GRAVEYARD.color, transparent: true, opacity: 0.3 })
+    );
+    frame.add(graveyardRing);
+  }
+
+  function buildZooFamilies() {
+    buildZooShell(Z.GPS);
+    buildZooShell(Z.SUNSYNC);
+    buildZooShell(Z.GRAVEYARD);
+    buildMolniya();
+    buildGeoSlots();
+    buildTrackLine();
+  }
+
+  // --- Ground tracks (selectable orbit → path painted on the turning surface) -----------
+  function buildTrackLine() {
+    trackAttr = new THREE.BufferAttribute(new Float32Array((TRACK_STEPS + 1) * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', trackAttr);
+    geo.setDrawRange(0, 0);
+    trackLine = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0xFFFFFF, transparent: true, opacity: 0.85, depthWrite: false
+    }));
+    trackLine.frustumCulled = false;
+    frame.add(trackLine);
+  }
+
+  /** Select (or clear) the family whose ground track is currently painted. */
+  function setTrack(track) {
+    if (!track) {
+      trackLatLon = null;
+      trackLine.geometry.setDrawRange(0, 0);
+      return;
+    }
+    trackLine.material.color.set(track.color || '#FFFFFF');
+    trackLatLon = Z.groundTrack(track.posFn, ORRERY.TimeBar.jd, track.spanDays, TRACK_STEPS);
+    trackLine.geometry.setDrawRange(0, TRACK_STEPS + 1);
+  }
+
+  /** Re-project the baked {lat,lon} track through the CURRENT spin phase — this
+   *  is what keeps it painted on the turning surface (same trick as the
+   *  GEO-hangs-still math, generalized: an Earth-fixed shape rotates with
+   *  Earth for free as long as its inertial angle always adds the current
+   *  spin phase, exactly like `S.fixedLongitudeDeg` inverted). */
+  function updateTrack(jd) {
+    if (!trackLatLon) return;
+    var spin = S.earthSpinFraction(jd) * 360;
+    for (var i = 0; i < trackLatLon.length; i++) {
+      var pt = trackLatLon[i];
+      var latR = pt.lat * DEG, loni = (pt.lon + spin) * DEG;
+      var cl = Math.cos(latR);
+      // equatorial km → local scene (matches eqToLocal's axis mapping)
+      trackAttr.setXYZ(i,
+        TRACK_R * cl * Math.cos(loni),
+        TRACK_R * Math.sin(latR),
+        -TRACK_R * cl * Math.sin(loni));
+    }
+    trackAttr.needsUpdate = true;
   }
 
   // --- Dossiers ------------------------------------------------------------------------
@@ -10021,9 +10979,9 @@ ORRERY.EarthOrbit = (function () {
       type: '35,786 km above the equator',
       fact: 'At exactly this altitude the orbital period equals one sidereal day ' +
         '(23 h 56 m 04 s), so a satellite hangs motionless over one spot on the ' +
-        'spinning Earth. Watch: the amber markers turn WITH the surface while the ' +
-        'LEO swarm races past. The 12 markers are schematic — the real belt holds ' +
-        'hundreds of stations.',
+        'spinning Earth. Watch: the amber ring turns WITH the surface while the ' +
+        'LEO swarm races past. Real operators sitting in this ring — weather ' +
+        'birds, TV and comms satellites — are named individually below.',
       stats: [
         ['Altitude', '35,786 km'],
         ['Radius', fmtInt(S.radiusKm(S.GEO.altKm)) + ' km'],
@@ -10046,6 +11004,139 @@ ORRERY.EarthOrbit = (function () {
     };
   }
 
+  // --- Level 29: Orbital Zoo dossiers ---------------------------------------------------
+  var GPS_DOSSIER = null, SUNSYNC_DOSSIER = null, MOLNIYA_DOSSIER = null, GRAVEYARD_DOSSIER = null,
+    GEOSLOTS_DOSSIER = null;
+
+  function gpsTrackFn() {
+    var shell = Z.GPS;
+    return function (t) { return S.satPosKm(shell, 0, 0, t); };
+  }
+  function sunsyncTrackFn() {
+    var shell = Z.SUNSYNC;
+    return function (t) { return S.satPosKm(shell, 0, 0, t); };
+  }
+  function molniyaTrackFn() {
+    return function (t) { return Z.molniyaPosKm(0, 0, t); };
+  }
+  function issTrackFn() {
+    return function (t) { return S.satPosKm(issShell, 0, 0, t); };
+  }
+
+  function buildZooDossiers() {
+    GPS_DOSSIER = {
+      name: 'GPS · MEO',
+      color: Z.GPS.color,
+      type: Z.GPS.planes + ' planes × ' + Z.GPS.perPlane + ' — ' + fmtInt(Z.GPS.altKm) +
+        ' km · ' + Z.GPS.incDeg.toFixed(0) + '°',
+      fact: 'Semi-synchronous by design: 2 orbits take almost exactly one sidereal ' +
+        'day, so every satellite’s ground track very nearly repeats daily — a ' +
+        'predictable, plannable footprint is the whole point of a navigation ' +
+        'constellation (real GPS needs occasional station-keeping to hold the ' +
+        'repeat; this synthetic catalog does not drift).',
+      stats: [
+        ['Altitude', fmtInt(Z.GPS.altKm) + ' km'],
+        ['Inclination', Z.GPS.incDeg.toFixed(1) + '°'],
+        ['Orbital period', S.periodMin(Z.GPS.altKm).toFixed(2) + ' min'],
+        ['Speed', S.vCirc(Z.GPS.altKm).toFixed(2) + ' km/s'],
+        ['2 orbits vs 1 sidereal day', (2 * S.periodMin(Z.GPS.altKm)).toFixed(1) +
+          ' vs ' + (S.SIDEREAL_H * 60).toFixed(1) + ' min']
+      ],
+      track: { posFn: gpsTrackFn(), spanDays: 2 * S.periodMin(Z.GPS.altKm) / 1440, color: Z.GPS.color }
+    };
+    SUNSYNC_DOSSIER = {
+      name: 'Sun-synchronous',
+      color: Z.SUNSYNC.color,
+      type: '700 km · ' + Z.SUNSYNC.incDeg.toFixed(2) + '° — Earth-observation altitude',
+      fact: 'Retrograde and steep enough that its J2 node precession exactly ' +
+        'cancels the ~1°/day the Earth sweeps around the Sun — this family ' +
+        'crosses the equator at the same local solar time on every single orbit, ' +
+        'forever, which is why every optical imaging satellite (Landsat, ' +
+        'Sentinel-2, …) flies one.',
+      stats: [
+        ['Altitude', Z.SUNSYNC.altKm + ' km'],
+        ['Inclination', Z.SUNSYNC.incDeg.toFixed(2) + '°'],
+        ['Orbital period', S.periodMin(Z.SUNSYNC.altKm).toFixed(1) + ' min'],
+        ['Node drift (J2)', S.raanRateDegPerDay(Z.SUNSYNC.altKm, Z.SUNSYNC.incDeg).toFixed(4) + '°/day'],
+        ['Earth around the Sun', '0.9856°/day']
+      ],
+      track: { posFn: sunsyncTrackFn(), spanDays: S.periodMin(Z.SUNSYNC.altKm) / 1440 * 3, color: Z.SUNSYNC.color }
+    };
+    MOLNIYA_DOSSIER = {
+      name: 'Molniya',
+      color: Z.MOLNIYA.color,
+      type: 'e ' + Z.MOLNIYA.e.toFixed(2) + ' · ' + Z.MOLNIYA.incDeg.toFixed(1) +
+        '° · 12 h — the apogee-dwell orbit',
+      fact: '63.4° is the CRITICAL INCLINATION: at 5cos²i = 1 the J2 drift of the ' +
+        'argument of perigee is exactly zero (verified against the same J2 code ' +
+        'as the Starlink shells), so apogee keeps dwelling over the far north ' +
+        'orbit after orbit instead of drifting away. A geostationary bird can’t ' +
+        'reach these latitudes at all — this is how the USSR covered them before ' +
+        'GEO relay was practical from Siberian latitudes.',
+      stats: [
+        ['Perigee altitude', fmtInt(Z.MOLNIYA.a * (1 - Z.MOLNIYA.e) - S.RE) + ' km'],
+        ['Apogee altitude', fmtInt(Z.MOLNIYA.a * (1 + Z.MOLNIYA.e) - S.RE) + ' km'],
+        ['Period', (Z.MOLNIYA.periodMin / 60).toFixed(0) + ' h'],
+        ['Apsidal (ω) drift', Z.argPeriRateDegPerDay(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg).toFixed(5) + '°/day'],
+        ['Node (Ω) drift', Z.raanRateEccDegPerDay(Z.MOLNIYA.a, Z.MOLNIYA.e, Z.MOLNIYA.incDeg).toFixed(3) + '°/day (not pinned)']
+      ],
+      track: { posFn: molniyaTrackFn(), spanDays: Z.MOLNIYA.periodMin / 1440, color: Z.MOLNIYA.color }
+    };
+    GRAVEYARD_DOSSIER = {
+      name: 'GEO graveyard',
+      color: Z.GRAVEYARD.color,
+      type: (Z.GRAVEYARD.altKm - S.GEO.altKm) + ' km above the operational ring',
+      fact: 'The IADC end-of-life guideline: raise a retiring GEO satellite at ' +
+        'least ~300 km above the operational belt before its last drop of fuel ' +
+        'runs out, keeping the working ring clear. These markers are schematic — ' +
+        'real graveyarded hardware is not individually catalogued here.',
+      stats: [
+        ['Altitude', fmtInt(Z.GRAVEYARD.altKm) + ' km'],
+        ['Margin above GEO', (Z.GRAVEYARD.altKm - S.GEO.altKm) + ' km'],
+        ['Orbital period', S.periodMin(Z.GRAVEYARD.altKm).toFixed(1) + ' min (vs GEO 1436.1)']
+      ]
+    };
+    GEOSLOTS_DOSSIER = {
+      name: 'Named GEO slots',
+      color: '#F2A63C',
+      type: Z.GEO_SLOTS.length + ' real operators, filed longitudes',
+      fact: 'Public longitude filings (approximate — GEO slots are periodically ' +
+        'renegotiated). Around the equinoxes, Earth’s shadow sweeps across the ' +
+        'ring near each satellite’s local midnight: GOES-19 (75.2°W) dims for ' +
+        'about 69 minutes overnight on 20–21 Mar 2026 — try that date. Away from ' +
+        'the equinox windows the Sun sits too far above or below the equatorial ' +
+        'plane for the shadow to reach this far out.',
+      stats: Z.GEO_SLOTS.map(function (s) {
+        return [s.name, (s.lonDeg >= 0 ? s.lonDeg.toFixed(1) + '°E' : (-s.lonDeg).toFixed(1) + '°W') + ' · ' + s.op];
+      })
+    };
+    ISS_DOSSIER.track = { posFn: issTrackFn(), spanDays: S.periodMin(S.ISS.altKm) / 1440 * 3.2, color: '#FFFFFF' };
+  }
+
+  function geoSlotDossier(slot) {
+    return {
+      name: slot.name,
+      color: '#F2A63C',
+      type: (slot.lonDeg >= 0 ? slot.lonDeg.toFixed(1) + '°E' : (-slot.lonDeg).toFixed(1) + '°W') +
+        ' · ' + slot.kind + ' · ' + slot.op,
+      fact: 'Geostationary: filed at a fixed longitude rather than a Walker slot ' +
+        '— its earth-fixed position does not move at all, only its position in ' +
+        'inertial space (it "hangs" only relative to the spinning surface).',
+      stats: [
+        ['Longitude', slot.lonDeg.toFixed(1) + '°'],
+        ['Operator', slot.op],
+        ['Kind', slot.kind],
+        ['Altitude', fmtInt(S.GEO.altKm) + ' km']
+      ],
+      liveFn: function (jd) {
+        var sun = Z.sunDirEquatorial(earthEl, jd);
+        var dark = Z.inShadow(Z.geoSlotPosKm(slot.lonDeg, jd), sun);
+        return '<div class="eo-stat"><span>Status</span><span>' +
+          (dark ? 'in Earth’s shadow' : 'sunlit') + '</span></div>';
+      }
+    };
+  }
+
   // --- DOM -----------------------------------------------------------------------------
   function buildDom() {
     dom.wrap = el('div', 'eo-ui', document.body);
@@ -10055,7 +11146,8 @@ ORRERY.EarthOrbit = (function () {
     el('h2', null, dom.caption, 'Earth Orbit');
     el('p', null, dom.caption,
       '4,408 Starlink satellites in their five licensed shells — real structure, ' +
-      'synthetic catalog · with the ISS, the GEO ring and the Moon for scale');
+      'synthetic catalog · with the ISS, the GEO ring and the Moon for scale, plus ' +
+      'the GPS/Molniya/sun-sync/GEO-slot orbital zoo below');
 
     // Clock + rate control (the mode's own time feel — minutes, not days)
     dom.clockWrap = el('div', 'eo-clock', dom.wrap);
@@ -10093,6 +11185,22 @@ ORRERY.EarthOrbit = (function () {
       b.addEventListener('click', function () { showCard(row[4]()); });
     });
 
+    // The Orbital Zoo (level 29): the reason each family's orbit is shaped
+    // the way it is, plus the named GEO slots + graveyard as one grouped row.
+    el('div', 'eo-legend-h', dom.legend, 'The orbital zoo');
+    [['gps', 'GPS · MEO', Z.GPS.color, '20,182 km · 55° · semi-sync', function () { return GPS_DOSSIER; }],
+     ['molniya', 'Molniya', Z.MOLNIYA.color, 'e 0.74 · 63.4° · 12 h', function () { return MOLNIYA_DOSSIER; }],
+     ['sunsync', 'Sun-synchronous', Z.SUNSYNC.color, '700 km · 98.2°', function () { return SUNSYNC_DOSSIER; }],
+     ['geoslots', 'Named GEO slots', '#F2A63C', Z.GEO_SLOTS.length + ' operators', function () { return GEOSLOTS_DOSSIER; }],
+     ['graveyard', 'GEO graveyard', Z.GRAVEYARD.color, '+300 km · disposal', function () { return GRAVEYARD_DOSSIER; }]
+    ].forEach(function (row) {
+      var b = el('button', 'eo-key', dom.legend,
+        '<span class="eo-dot" style="background:' + row[2] + '"></span>' +
+        '<strong>' + row[1] + '</strong><em>' + row[3] + '</em>');
+      b.dataset.eo = row[0];
+      b.addEventListener('click', function () { showCard(row[4]()); });
+    });
+
     // Ruler (nice-number km scale at the orbit distance)
     var ruler = el('div', 'eo-ruler', dom.wrap);
     dom.rulerBar = el('div', 'eo-ruler-bar', ruler);
@@ -10107,7 +11215,7 @@ ORRERY.EarthOrbit = (function () {
     dom.exit.id = 'eo-exit';
     dom.exit.addEventListener('click', exit);
 
-    dom.labelLayer = el('div', 'eo-labels', document.body);
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body); // addLabel may have made it
 
     dom.card = el('aside', 'eo-card', document.body);
     dom.card.id = 'eo-card';
@@ -10127,6 +11235,14 @@ ORRERY.EarthOrbit = (function () {
   }
 
   function addLabel(text, posFn, data, color) {
+    // Lazy-create the layer: addLabel must never fall back to document.body
+    // (el() does when its parent is undefined). Unclipped body-level labels
+    // escape the layer's overflow:hidden, and their per-frame transforms
+    // make mobile Chrome ratchet the LAYOUT viewport up to 4× the device
+    // width — sliding the fixed ✕-exit off the visual viewport and breaking
+    // the phone exit tap (level-29 lesson: buildGeoSlots ran before
+    // buildDom, so its 7 GEO-slot labels landed on body).
+    if (!dom.labelLayer) dom.labelLayer = el('div', 'eo-labels', document.body);
     var e = el('button', 'eo-label', dom.labelLayer, text);
     e.style.setProperty('--dot', color);
     var it = { el: e, posFn: posFn, data: data };
@@ -10151,12 +11267,14 @@ ORRERY.EarthOrbit = (function () {
       return '<div class="eo-stat"><span>Sub-satellite point</span><span>' +
         Math.abs(lat).toFixed(1) + '°' + (lat >= 0 ? 'N' : 'S') + ' · ' +
         Math.abs(lon).toFixed(1) + '°' + (lon >= 0 ? 'E' : 'W') + '</span></div>';
-    } : null;
+    } : (data.liveFn || null);
+    setTrack(data.track);
     c.classList.add('show');
   }
   function closeCard() {
     dom.card.classList.remove('show');
     cardLive = null;
+    setTrack(null);
   }
 
   // --- Label projection ------------------------------------------------------------------
@@ -10206,6 +11324,7 @@ ORRERY.EarthOrbit = (function () {
     built = true;
     S = ORRERY.STARLINK;
     K = ORRERY.Kepler;
+    Z = ORRERY.ZOO;
     vTmp = new THREE.Vector3();
     sunDir = new THREE.Vector3(1, 0, 0);
     earthEl = ORRERY.DATA.PLANETS.filter(function (p) { return p.key === 'earth'; })[0].el;
@@ -10220,15 +11339,17 @@ ORRERY.EarthOrbit = (function () {
     buildEarth();
     buildShells();
     buildAnchors();
+    buildZooFamilies();
     buildDossiers();
+    buildZooDossiers();
     buildDom();
 
     addLabel('ISS', function (out, jd) {
       eqToLocal(S.satPosKm(issShell, 0, 0, jd), out);
       return frame.localToWorld(out);
     }, function () { return ISS_DOSSIER; }, '#FFFFFF');
-    addLabel('GEO — 35,786 km', function (out, jd) {
-      eqToLocal(S.satPosKm(geoShell, 0, 0, jd), out);
+    addLabel('GEO ring', function (out, jd) {
+      eqToLocal(Z.geoSlotPosKm(0, jd), out);
       return frame.localToWorld(out);
     }, function () { return GEO_DOSSIER; }, '#F2A63C');
     addLabel('Moon', function (out) {
@@ -10236,6 +11357,9 @@ ORRERY.EarthOrbit = (function () {
     }, function () { return MOON_DOSSIER; }, '#C4C0BA');
 
     root.updateMatrixWorld(true);
+
+    // Ascent ride-along (new module, additive hook only — see ascent.js header).
+    if (ORRERY.Ascent) ORRERY.Ascent.mount({ ctx: ctx, frame: frame, container: dom.wrap });
   }
 
   // --- Enter / exit ------------------------------------------------------------------------------
@@ -10291,6 +11415,7 @@ ORRERY.EarthOrbit = (function () {
 
   function exit() {
     if (!active) return;
+    if (ORRERY.Ascent && ORRERY.Ascent.active) ORRERY.Ascent.stop();
     active = false;
 
     root.visible = false;
@@ -10381,7 +11506,8 @@ ORRERY.EarthOrbit = (function () {
   function onKey(e) {
     if (!active) return;
     if (e.code === 'Escape') {
-      if (dom.card.classList.contains('show')) closeCard();
+      if (ORRERY.Ascent && ORRERY.Ascent.active) ORRERY.Ascent.stop();
+      else if (dom.card.classList.contains('show')) closeCard();
       else exit();
     }
   }
@@ -10408,12 +11534,14 @@ ORRERY.EarthOrbit = (function () {
   function tick(dt, jd) {
     if (!active) return;
     if (ctx.guards && ctx.guards()) { exit(); return; }
+    if (ORRERY.Ascent) ORRERY.Ascent.tick(dt, jd);
     tAnim += dt;
 
     // Sun direction from Earth at the sim clock (ecliptic → scene axes)
     var h = K.heliocentric(earthEl, jd);
     sunDir.set(-h.x, -h.z, h.y).normalize();
     sunGlow.position.copy(sunDir).multiplyScalar(3600);
+    sunDirEqKm = Z.sunDirEquatorial(earthEl, jd);   // same Sun, equatorial-km frame (Z.inShadow)
 
     // Earth spin — the SAME phase formula main.js uses for the orrery mesh
     var spin = S.earthSpinFraction(jd) * Math.PI * 2;
@@ -10435,16 +11563,49 @@ ORRERY.EarthOrbit = (function () {
     S.satPosKm(issShell, 0, 0, jd, eqTmp);
     issSprite.position.set(eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
 
-    for (var g = 0; g < 12; g++) {
-      S.satPosKm(geoShell, 0, g, jd, eqTmp);
-      geoAttr.setXYZ(g, eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
-    }
-    geoAttr.needsUpdate = true;
-
     // Moon: true distance/period, schematic phase, ecliptic plane
     var ma = ((jd - S.EPOCH) / 27.322) * Math.PI * 2;
     moonMesh.position.set(Math.cos(ma) * 384.4, 0, -Math.sin(ma) * 384.4);
 
+    // --- Level 29: Orbital Zoo propagation + shadow dimming ---------------------------
+    var DIM = 0.28; // brightness multiplier while inside Earth's shadow cylinder
+
+    zooShellsR.forEach(function (zr) {
+      var fam = zr.family, a = zr.attr, ca = zr.colorAttr, base = zr.base, idx = 0;
+      for (var p = 0; p < fam.planes; p++) {
+        for (var s = 0; s < fam.perPlane; s++) {
+          S.satPosKm(fam, p, s, jd, eqTmp);
+          a.setXYZ(idx, eqTmp.x * KM, eqTmp.z * KM, -eqTmp.y * KM);
+          var f = Z.inShadow(eqTmp, sunDirEqKm) ? DIM : 1;
+          ca.setXYZ(idx, base.r * f, base.g * f, base.b * f);
+          idx++;
+        }
+      }
+      a.needsUpdate = true;
+      ca.needsUpdate = true;
+    });
+
+    var mIdx = 0;
+    for (var mp = 0; mp < Z.MOLNIYA.planes; mp++) {
+      for (var ms = 0; ms < Z.MOLNIYA.perPlane; ms++) {
+        var mPos = Z.molniyaPosKm(mp, ms, jd);
+        molAttr.setXYZ(mIdx, mPos.x * KM, mPos.z * KM, -mPos.y * KM);
+        var mf = Z.inShadow(mPos, sunDirEqKm) ? DIM : 1;
+        molColorAttr.setXYZ(mIdx, molBase.r * mf, molBase.g * mf, molBase.b * mf);
+        mIdx++;
+      }
+    }
+    molAttr.needsUpdate = true;
+    molColorAttr.needsUpdate = true;
+
+    geoSlots.forEach(function (gs) {
+      var pos = Z.geoSlotPosKm(gs.slot.lonDeg, jd);
+      gs.sprite.position.set(pos.x * KM, pos.z * KM, -pos.y * KM);
+      var dark = Z.inShadow(pos, sunDirEqKm);
+      gs.sprite.material.color.setScalar(dark ? DIM : 1);
+    });
+
+    updateTrack(jd);
     updateLabels(jd);
     updateClock(jd);
     updateRuler();
@@ -10461,19 +11622,397 @@ ORRERY.EarthOrbit = (function () {
     get active() { return active; },
     /** Headless-verification hook: world positions + spin for the e2e spec. */
     debug: function () {
-      var a = new THREE.Vector3(), b = new THREE.Vector3();
+      var jd = ORRERY.TimeBar.jd;
+      var a = new THREE.Vector3(), b = new THREE.Vector3(), gp = new THREE.Vector3(), mp = new THREE.Vector3();
       frame.updateMatrixWorld(true);
-      eqToLocal(S.satPosKm(shellsR[0].shell, 0, 0, ORRERY.TimeBar.jd), a);
+      eqToLocal(S.satPosKm(shellsR[0].shell, 0, 0, jd), a);
       frame.localToWorld(a);
-      eqToLocal(S.satPosKm(geoShell, 0, 0, ORRERY.TimeBar.jd), b);
+      var geoLon0 = Z.GEO_SLOTS[0].lonDeg;
+      var geoPos = Z.geoSlotPosKm(geoLon0, jd);
+      eqToLocal(geoPos, b);
       frame.localToWorld(b);
+      eqToLocal(S.satPosKm(Z.GPS, 0, 0, jd), gp);
+      frame.localToWorld(gp);
+      var molPos = Z.molniyaPosKm(0, 0, jd);
+      eqToLocal(molPos, mp);
+      frame.localToWorld(mp);
       return {
-        jd: ORRERY.TimeBar.jd,
+        jd: jd,
         leoWorld: a.toArray(),
         geoWorld: b.toArray(),
-        spinFraction: S.earthSpinFraction(ORRERY.TimeBar.jd),
-        geoFixedLon: S.fixedLongitudeDeg(S.satPosKm(geoShell, 0, 0, ORRERY.TimeBar.jd), ORRERY.TimeBar.jd),
-        leoFixedLon: S.fixedLongitudeDeg(S.satPosKm(shellsR[0].shell, 0, 0, ORRERY.TimeBar.jd), ORRERY.TimeBar.jd)
+        spinFraction: S.earthSpinFraction(jd),
+        geoFixedLon: S.fixedLongitudeDeg(geoPos, jd),
+        leoFixedLon: S.fixedLongitudeDeg(S.satPosKm(shellsR[0].shell, 0, 0, jd), jd),
+        // Level 29: Orbital Zoo
+        gpsWorld: gp.toArray(),
+        molniyaWorld: mp.toArray(),
+        molniyaR: molPos.r,
+        geoNamedFixedLon: S.fixedLongitudeDeg(geoPos, jd),
+        geoNamedShadow: Z.inShadow(geoPos, Z.sunDirEquatorial(earthEl, jd))
+      };
+    }
+  };
+})();
+
+
+/* ========== src/scene/ascent.js ========== */
+/**
+ * ascent.js — "Ride a launch": a chase-cam ride along the baked pad-to-ISS
+ * ascent (src/data/ascentprofile.js) inside the Earth-orbit regime.
+ *
+ * Physics tier: offline-baked 2D point-mass integration (see
+ * ascentprofile.js's header) — the trajectory here is real physics found by
+ * bisection, not a scripted flight path. This module is pure presentation:
+ * it reads ORRERY.AscentProfile.stateAtMissionTime(t) every frame, places a
+ * marker sprite + growing trail along the equatorial-frame position, and
+ * chases it with a hand-rolled camera (the ride.js PATTERN — position
+ * behind the direction of travel with exponential smoothing — reimplemented
+ * locally rather than calling into ride.js's shared singleton: ORRERY.Ride
+ * is a cross-mode guard elsewhere [main.js's Cosmos/EarthOrbit `guards`
+ * check `ORRERY.Ride.active`], so touching it from inside EarthOrbit would
+ * make the regime think a conflicting mode had opened and exit itself).
+ *
+ * At this scale a real Falcon-9-class rocket is a few dozen meters — many
+ * orders of magnitude under a pixel (1 scene unit = 1,000 km here, same as
+ * earthorbit.js) — so, like the ISS itself in earthorbit.js, it renders as
+ * a glow sprite plus its flown path, honestly captioned as a marker.
+ *
+ * Time: the regime's own TimeBar is what actually drives every position
+ * (satellites, ISS, Earth spin, this rocket) — this module doesn't run its
+ * own separate clock. During the scripted ascent+coast it drives
+ * ORRERY.TimeBar via snapJd() (the instant-teleport entry point timebar.js
+ * documents for exactly this "choreography that immediately re-integrates
+ * against the new date" case — plain `TimeBar.jd = v` EASES any jump over a
+ * day, which every ride frame is, since the epoch is baked near J2000) at a
+ * phase-dependent compression: 6× real through the ~7-minute powered
+ * ascent, 45× through the ~44-minute coast — both "readable": stage events
+ * read as distinct beats, not a blur. Once
+ * circularized it hands the clock back to the regime's OWN rate mechanism
+ * at the "real" preset (1/86400, identical to earthorbit.js's own real-time
+ * button) — the ride's final "parked alongside the ISS" state is literally
+ * just riding the regime's normal clock from then on, so its own rate
+ * buttons keep working exactly as documented.
+ *
+ * Entry/exit: mount() is called once from earthorbit.js's buildAll() (a
+ * button appended into its DOM) and tick()/stop() from its tick()/exit()/
+ * onKey() — the only hooks earthorbit.js carries. Every start() snapshots
+ * camera pose, controls.enabled and the TimeBar {jd, rate, playing}; stop()
+ * (Esc mid-ride, the ride's own exit button, or the whole regime exiting)
+ * restores all of it exactly, and clears the scene group — nothing keeps
+ * running after exit.
+ */
+window.ORRERY = window.ORRERY || {};
+
+ORRERY.Ascent = (function () {
+  'use strict';
+
+  var KM = 0.001;                 // scene units per km — same convention as earthorbit.js
+  var EARTH_R = 6.371;             // scene units — must not let the chase camera clip inside
+  var ASCENT_COMPRESSION = 6;      // × real time through the ~7 min powered ascent
+  var COAST_COMPRESSION = 45;      // × real time through the ~44 min unpowered coast
+  var FLARE_DURATION = 1.6;        // s, real time (unaffected by compression, so it always reads)
+
+  var mounted = false, active = false, state = 'idle';   // state: idle | flying | parked
+  var eoCtx = null, frame = null, A = null;
+  var group = null, rocketSprite = null, trailLine = null, trailAttr = null;
+  var trailCount = 0, TRAIL_MAX = 3000;
+  var flares = [];
+  var dom = {};
+  var beats = [], beatIndex = 0;
+  var saved = null;
+  var missionElapsed = 0;
+  var back = 0.03;
+  var first = true;
+  var dir = new THREE.Vector3(0, 1, 0);
+  var prevWorld = new THREE.Vector3();
+  var smoothTarget = new THREE.Vector3();
+  var dCam = new THREE.Vector3(), dTar = new THREE.Vector3(), vWorld = new THREE.Vector3();
+  var UP = new THREE.Vector3(0, 1, 0);
+
+  // --- Scene ------------------------------------------------------------------------
+  function buildScene() {
+    group = new THREE.Group();
+    group.visible = false;
+    frame.add(group);
+
+    rocketSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: ORRERY.Textures.glowSprite('rgba(255,255,255,0.95)', 'rgba(255,190,120,0.35)'),
+      blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+    }));
+    rocketSprite.scale.setScalar(0.5);
+    group.add(rocketSprite);
+
+    trailAttr = new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 3), 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', trailAttr);
+    geo.setDrawRange(0, 0);
+    trailLine = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0xFFC978, transparent: true, opacity: 0.85
+    }));
+    trailLine.frustumCulled = false;
+    group.add(trailLine);
+  }
+
+  function spawnFlare(localPos) {
+    var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: ORRERY.Textures.glowSprite('rgba(255,255,255,1)', 'rgba(255,170,90,0.5)'),
+      blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 1
+    }));
+    sprite.position.copy(localPos);
+    sprite.scale.setScalar(0.4);
+    group.add(sprite);
+    flares.push({ sprite: sprite, t: 0 });
+  }
+
+  function updateFlares(dtReal) {
+    for (var i = flares.length - 1; i >= 0; i--) {
+      var f = flares[i];
+      f.t += dtReal;
+      var p = Math.min(1, f.t / FLARE_DURATION);
+      f.sprite.scale.setScalar(0.4 + p * 2.6);
+      f.sprite.material.opacity = 1 - p;
+      if (p >= 1) {
+        group.remove(f.sprite);
+        f.sprite.material.map = null;
+        f.sprite.material.dispose();
+        flares.splice(i, 1);
+      }
+    }
+  }
+
+  /** Equatorial km -> frame-local scene units, same formula as earthorbit.js eqToLocal. */
+  function eciToLocal(p, out) {
+    return out.set(p.x * KM, p.z * KM, -p.y * KM);
+  }
+
+  // --- DOM --------------------------------------------------------------------------
+  function fmt(n, d) { return n.toFixed(d === undefined ? 1 : d); }
+
+  function buildBeats() {
+    var P = A.PROFILE, m = P.milestones;
+    var az = P.constants.AZIMUTH_DEG;
+    beats = [
+      { t: 0, title: 'Liftoff', body: 'Cape Canaveral, 28.5°N — azimuth ' + fmt(az, 0) +
+          '° NE, the real heading for a 51.6° ISS-compatible inclination from this latitude.' },
+      { t: P.maxQ.t, title: 'Max-Q', flare: true, body: 'Peak aerodynamic pressure, ' + fmt(P.maxQ.alt) +
+          ' km up — the roughest few seconds of the ride.' },
+      { t: m.stage1Cutoff.t, title: 'MECO', flare: true, body: 'Stage 1 cutoff: ' + fmt(m.stage1Cutoff.alt, 0) +
+          ' km, ' + fmt(m.stage1Cutoff.v, 2) + ' km/s. Stage separation.' },
+      { t: m.stageIgnition2.t, title: 'Stage 2 ignition', body: 'Second stage picks up the burn toward orbit.' },
+      { t: m.seco.t, title: 'SECO', flare: true, body: 'Second-stage cutoff: ' + fmt(m.seco.alt, 0) + ' km, ' +
+          fmt(m.seco.v, 2) + ' km/s — an elliptical transfer orbit, apogee ahead.' },
+      { t: m.seco.t + 1.5, title: 'Coasting to apogee', body: 'Unpowered for ' + fmt(P.tToApogee / 60, 0) +
+          ' real minutes, shown heavily sped up, while the orbit climbs to 420 km.' },
+      { t: P.missionDurationSeconds, title: 'Circularization', flare: true,
+          body: fmt(m.circularization.dv * 1000, 0) + ' m/s burn at apogee closes the orbit: 420 km, ' +
+          fmt(P.vCirc, 2) + ' km/s — the same speed the ISS itself holds.' },
+      { t: P.missionDurationSeconds + 3, title: 'In orbit', body: 'Alongside the ISS — same ' +
+          'plane, ~180 km apart, drifting slowly. A co-orbit, honestly not a docking.' }
+    ];
+  }
+
+  function showBeat(i) {
+    if (i < 0 || i >= beats.length) return;
+    var b = beats[i];
+    dom.title.textContent = b.title;
+    dom.body.textContent = b.body;
+    if (b.flare) spawnFlare(rocketSprite.position);
+  }
+
+  function updateBeats(curT) {
+    while (beatIndex < beats.length && beats[beatIndex].t <= curT) {
+      showBeat(beatIndex);
+      beatIndex++;
+    }
+  }
+
+  function buildDom(container) {
+    dom.launchBtn = document.createElement('button');
+    dom.launchBtn.className = 'asc-launch-btn';
+    dom.launchBtn.id = 'asc-launch';
+    dom.launchBtn.type = 'button';
+    dom.launchBtn.textContent = 'Ride a launch — pad to ISS';
+    dom.launchBtn.addEventListener('click', start);
+    container.appendChild(dom.launchBtn);
+
+    dom.hud = document.createElement('div');
+    dom.hud.className = 'asc-hud';
+    dom.hud.id = 'asc-hud';
+    dom.hud.innerHTML =
+      '<div class="asc-caption"><h3 class="asc-title"></h3><p class="asc-body"></p></div>' +
+      '<button class="asc-exit" id="asc-exit" type="button">Exit ride</button>';
+    document.body.appendChild(dom.hud);
+    dom.title = dom.hud.querySelector('.asc-title');
+    dom.body = dom.hud.querySelector('.asc-body');
+    document.getElementById('asc-exit').addEventListener('click', stop);
+
+    var canvas = eoCtx.canvas;
+    canvas.addEventListener('wheel', function (e) {
+      if (!active) return;
+      e.preventDefault();
+      back *= Math.exp(e.deltaY * 0.0015);
+      back = Math.max(0.01, Math.min(3, back));
+    }, { passive: false });
+  }
+
+  // --- Mount (called once from earthorbit.js buildAll()) -----------------------------
+  function mount(opts) {
+    if (mounted) return;
+    mounted = true;
+    eoCtx = opts.ctx;
+    frame = opts.frame;
+    A = ORRERY.AscentProfile;
+    buildScene();
+    buildBeats();
+    buildDom(opts.container);
+  }
+
+  // --- Start / stop -------------------------------------------------------------------
+  function start() {
+    if (!mounted || active || !eoCtx) return;
+    active = true;
+    state = 'flying';
+    missionElapsed = 0;
+    beatIndex = 0;
+    first = true;
+    trailCount = 0;
+    trailLine.geometry.setDrawRange(0, 0);
+    group.visible = true;
+
+    saved = {
+      camPos: eoCtx.camera.position.clone(),
+      target: eoCtx.controls.target.clone(),
+      controlsEnabled: eoCtx.controls.enabled,
+      jd: ORRERY.TimeBar.jd,
+      rate: ORRERY.TimeBar.rate,
+      playing: ORRERY.TimeBar.playing
+    };
+    ORRERY.CameraPath.cancel();
+    eoCtx.controls.enabled = false;
+    ORRERY.TimeBar.playing = false;
+    ORRERY.TimeBar.snapJd(A.PROFILE.jd0);   // instant — TimeBar.jd= would ease a >1-day jump
+
+    document.body.classList.add('riding-ascent');
+    dom.hud.classList.add('show');
+    showBeat(0);
+    beatIndex = 1;
+  }
+
+  function cleanupFlares() {
+    flares.forEach(function (f) {
+      group.remove(f.sprite);
+      f.sprite.material.dispose();
+    });
+    flares.length = 0;
+  }
+
+  function stop() {
+    if (!active) return;
+    active = false;
+    state = 'idle';
+    group.visible = false;
+    cleanupFlares();
+
+    eoCtx.controls.enabled = saved.controlsEnabled;
+    eoCtx.controls.target.copy(saved.target);
+    ORRERY.CameraPath.begin({ to: saved.camPos, instant: true });
+    ORRERY.TimeBar.snapJd(saved.jd);
+    ORRERY.TimeBar.rate = saved.rate;
+    ORRERY.TimeBar.playing = saved.playing;
+
+    document.body.classList.remove('riding-ascent');
+    dom.hud.classList.remove('show');
+  }
+
+  function enterParked() {
+    state = 'parked';
+    ORRERY.TimeBar.rate = 1 / 86400;   // identical to earthorbit.js's own "real" rate preset
+    ORRERY.TimeBar.playing = true;
+  }
+
+  var localTmp = new THREE.Vector3(), lastTrailTmp = new THREE.Vector3();
+
+  // --- Per-frame update -----------------------------------------------------------------
+  function updateRocket() {
+    var st = A.stateAtMissionTime(missionElapsed);
+    var eci = A.toECI(st.x, st.y, A.PROFILE.constants.TARGET_INC_DEG, A.PROFILE.omegaAscentDeg);
+    eciToLocal(eci, localTmp);
+    rocketSprite.position.copy(localTmp);
+
+    var farEnough = trailCount === 0 ||
+      lastTrailTmp.set(trailAttr.getX(trailCount - 1), trailAttr.getY(trailCount - 1), trailAttr.getZ(trailCount - 1))
+        .distanceTo(localTmp) > 0.01;
+    if (farEnough && trailCount < TRAIL_MAX) {
+      trailAttr.setXYZ(trailCount, localTmp.x, localTmp.y, localTmp.z);
+      trailCount++;
+      trailAttr.needsUpdate = true;
+      trailLine.geometry.setDrawRange(0, trailCount);
+    }
+    return st;
+  }
+
+  function updateCamera(dtReal) {
+    frame.updateMatrixWorld(true);
+    vWorld.copy(rocketSprite.position);
+    frame.localToWorld(vWorld);
+
+    if (first) {
+      prevWorld.copy(vWorld);
+      smoothTarget.copy(vWorld);
+      dir.copy(vWorld).normalize();
+      if (dir.lengthSq() < 1e-9) dir.set(0, 1, 0);
+      first = false;
+    }
+    var moved = vWorld.clone().sub(prevWorld);
+    if (moved.length() > 1e-6) dir.copy(moved).normalize();
+    prevWorld.copy(vWorld);
+
+    dCam.copy(vWorld).addScaledVector(dir, -back).addScaledVector(UP, back * 0.45);
+    if (dCam.length() < EARTH_R * 1.05) dCam.setLength(EARTH_R * 1.05);
+
+    var k = 1 - Math.exp(-dtReal * 5);
+    eoCtx.camera.position.lerp(dCam, k);
+    dTar.copy(vWorld).addScaledVector(dir, back * 1.3);
+    smoothTarget.lerp(dTar, k);
+    eoCtx.camera.lookAt(smoothTarget);
+    eoCtx.controls.target.copy(smoothTarget);
+  }
+
+  function tick(dtReal) {
+    if (!active) return;
+
+    if (state === 'flying') {
+      var comp = missionElapsed < A.PROFILE.constants.T_SECO ? ASCENT_COMPRESSION : COAST_COMPRESSION;
+      missionElapsed += dtReal * comp;
+      if (missionElapsed >= A.PROFILE.missionDurationSeconds) {
+        missionElapsed = A.PROFILE.missionDurationSeconds;
+      }
+      ORRERY.TimeBar.snapJd(A.PROFILE.jd0 + missionElapsed / 86400);   // instant, no ease
+      if (missionElapsed >= A.PROFILE.missionDurationSeconds) enterParked();
+    } else if (state === 'parked') {
+      missionElapsed = (ORRERY.TimeBar.jd - A.PROFILE.jd0) * 86400;
+    }
+
+    updateRocket();
+    updateBeats(missionElapsed);   // after updateRocket: flares spawn at the current position
+    updateCamera(dtReal);
+    updateFlares(dtReal);
+  }
+
+  return {
+    mount: mount,
+    tick: tick,
+    start: start,
+    stop: stop,
+    get active() { return active; },
+    /** Headless-verification hook: mission-elapsed time + rocket state + phase. */
+    debug: function () {
+      if (!mounted) return null;
+      var st = A.stateAtMissionTime(missionElapsed);
+      return {
+        active: active, state: state, missionElapsed: missionElapsed,
+        alt: st.alt, speed: st.speed, phase: st.phase, beatIndex: beatIndex,
+        jd: ORRERY.TimeBar.jd
       };
     }
   };
