@@ -23,6 +23,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual firing for when GitHub drops a branch's pull_request events
+  # (twice on 2026-07-08 — PRs #22/#24 never got checks while sibling PRs
+  # triggered fine): gh workflow run CI --ref <branch>
+  workflow_dispatch:
 
 jobs:
   build-test-smoke:
