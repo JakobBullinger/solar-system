@@ -2390,10 +2390,11 @@ body.earthorbit .panel { display: none; }
   color: rgba(233, 238, 247, 0.75);
 }
 .eo-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 76px;
-  transform: translateX(-50%);
+  /* In the .eo-clock flex column (earthorbit.js buildDom) — its old absolute
+     bottom:76px anchor was hand-tuned to clear a two-row clock column and
+     broke the moment the column grew (ascent launch button). */
+  max-width: 92vw;
+  text-align: center;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -2519,17 +2520,21 @@ body.earthorbit .panel { display: none; }
 @media (max-width: 720px) {
   .eo-legend { display: none; }
   .eo-caption p { display: none; }
+  /* The bottom-center clock column spans most of a phone's width — dock the
+     km ruler under the ✕-exit (top: 22px + ~31px button + gap) instead of
+     letting it collide with the column's widest row (the launch button). */
+  .eo-ruler { bottom: auto; top: 64px; }
 }
 
 /* ---- Ascent ride-along (pad-to-ISS chase-cam inside Earth orbit) ----------
-   The entry button lives in the same #eo-ui chrome; while riding, the busy
-   legend/hint/caption declutter (body.riding-ascent) so the pad-to-orbit
-   caption card and the clock/exit stay the only chrome on screen. */
+   The entry button lives in the same #eo-ui chrome — in the clock column's
+   flex flow (clock → rate pills → button), NOT absolutely positioned: an
+   absolute bottom-center anchor collided with the rate pills, which own
+   that spot (merge of the level-24 and ascent lanes; user-reported).
+   While riding, the busy legend/hint/caption declutter (body.riding-ascent)
+   so the pad-to-orbit caption card and the clock/exit stay the only chrome
+   on screen. */
 .asc-launch-btn {
-  position: absolute;
-  left: 50%;
-  bottom: 26px;
-  transform: translateX(-50%);
   padding: 9px 18px;
   font-size: 11px;
   letter-spacing: 0.12em;
