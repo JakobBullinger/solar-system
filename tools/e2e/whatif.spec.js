@@ -12,9 +12,16 @@
 
 const { test, expect, gotoOrrery, pinMenus, screenshot, assertSceneRendered, driveTicks } = require('./orrery');
 
-/** Let the frame loop run until the lying orbit ellipses have faded out. */
+/**
+ * Let the frame loop run until the lying orbit ellipses have faded out.
+ * The fade is per-FRAME geometric decay (orbitflow.js: railsFade +=
+ * 0.06·remainder each frame → ~48 frames to pass 0.95), not dt-based, so
+ * its wall-clock cost scales with frame time: ~4 s solo, legitimately >8 s
+ * under parallel-worker CPU contention. 30 s bounds the wait without
+ * touching the assertion — the fade must still actually complete.
+ */
 async function waitForEllipseFade(page) {
-  await page.waitForFunction(() => window.ORRERY.OrbitFlow.railsFade > 0.95, null, { timeout: 8000 });
+  await page.waitForFunction(() => window.ORRERY.OrbitFlow.railsFade > 0.95, null, { timeout: 30000 });
 }
 
 /** Heliocentric deviation (AU) of a promoted planet from its Kepler rail. */

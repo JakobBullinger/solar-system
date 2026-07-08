@@ -60,13 +60,21 @@ jobs:
           path: smoke.png
           if-no-files-found: ignore
 
-  # Full browser e2e suite. Single worker by design (~5 min): the specs share
-  # one Chrome profile dir and assert rendered pixels, so parallelism buys
-  # nothing but flakes. The runner's preinstalled Google Chrome lives at
-  # /opt/google/chrome/chrome — exactly where Playwright's channel:'chrome'
-  # looks on Linux — so no browser download or install step is needed.
+  # Full browser e2e suite, two workers on the 4-core runner (each worker is
+  # its own Chrome doing SwiftShader software rendering — CPU-bound, so more
+  # workers than cores/2 mostly contend). The old "single worker by design"
+  # comment was wrong on the facts: tests never shared a profile — Playwright
+  # gives every test an ephemeral context (own localStorage), there is no
+  # server and no port, and screenshot names are unique. See the audit note
+  # in tools/e2e/playwright.config.js. E2E_WORKERS=1 restores the exact old
+  # serial behavior when bisecting a suspected parallelism flake.
+  # The runner's preinstalled Google Chrome lives at /opt/google/chrome/chrome
+  # — exactly where Playwright's channel:'chrome' looks on Linux — so no
+  # browser download or install step is needed.
   e2e:
     runs-on: ubuntu-latest
+    env:
+      E2E_WORKERS: 2
     steps:
       - name: Checkout
         uses: actions/checkout@v4

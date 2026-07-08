@@ -66,6 +66,16 @@ VIEWPORTS.forEach((vp) => {
       // earthorbit.spec.js / mobile.spec.js).
       await page.evaluate(() => document.getElementById('opt-earth').click());
       await expect(page.locator('#eo-ui')).toHaveClass(/on/);
+      // The clock/hint text is written by the regime's per-frame tick — the
+      // `on` class flips synchronously in the click handler, so under
+      // parallel CPU contention this measurement could land BEFORE the first
+      // regime frame and read an empty (0×0) clock. Wait for the regime to
+      // have actually painted its chrome, then measure (latent race even at
+      // one worker; caught by the w=4 stability runs).
+      await page.waitForFunction(() => {
+        const c = document.getElementById('eo-clock');
+        return c && c.textContent.trim().length > 0;
+      });
 
       const m = await page.evaluate(() => {
         const r = (el) => {

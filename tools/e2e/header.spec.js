@@ -169,7 +169,7 @@ test('first visit ever auto-opens Explore once; later visits stay calm', async (
 
   // Same context = same localStorage: a reload must NOT auto-open.
   await gotoOrrery(page, null, { pinMenus: false });
-  await page.waitForTimeout(1500); // past the 600 ms auto-open delay
+  await page.waitForTimeout(900); // auto-open fires at 600 ms (header.js) — 50% margin past it
   await expect(page.locator('#hdr-menu-explore')).not.toBeVisible();
 });
 

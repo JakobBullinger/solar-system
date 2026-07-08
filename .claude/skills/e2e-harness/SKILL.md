@@ -10,10 +10,22 @@ description: Write and run real browser e2e specs for the orrery with Playwright
 browser download; runtime stays zero-dep, Playwright is devDependencies
 only). Always `node build.js` first: specs test the bundle, not `src/`.
 
-CI does not run these yet (the runner would need Chrome or a
-`playwright install` step) — that's documented future work. Locally this
-is the verification workhorse; `/headless-check` remains the recipe for
-quick one-off screenshots.
+CI runs the full suite on every PR and push to main (`.github/workflows/
+ci.yml`, e2e job — the runner's preinstalled Chrome, no install step).
+Locally this is the verification workhorse; `/headless-check` remains the
+recipe for quick one-off screenshots.
+
+The suite runs PARALLEL (since 2026-07-08): 4 workers locally, 2 on CI's
+4-core runner (`E2E_WORKERS=n` overrides; `E2E_WORKERS=1` restores the
+old serial behavior exactly — use it to bisect a suspected parallelism
+flake). Safe because every test gets its own ephemeral browser context —
+own localStorage, no server, no shared profile. It imposes one hard
+convention: **specs must be self-contained.** Every test does its own
+`gotoOrrery` and must not depend on another test's side effects, on
+serial order within its file (`fullyParallel: true` schedules individual
+tests across workers), or on shared storage. First-visit gates
+(localStorage) are per-test state: seed them via `addInitScript` like
+mobile.spec.js / header.spec.js when you need a returning visitor.
 
 ## Writing a spec
 
@@ -53,9 +65,25 @@ Library (`tools/e2e/orrery.js`):
   `ORRERY.Sandbox.tick(jd, jd+step)` in a loop, the live frame-loop code
   path; `jd0 = null` starts at the app clock. Returns the final jd.
 
-Config: `tools/e2e/playwright.config.js` (1600×1000, single worker,
-SwiftShader launch args). New spec = new `tools/e2e/<name>.spec.js`; no
-registration needed.
+Config: `tools/e2e/playwright.config.js` (1600×1000, parallel workers —
+see above, SwiftShader launch args). New spec = new
+`tools/e2e/<name>.spec.js`; no registration needed.
+
+Spec speed discipline (measured 2026-07-08, don't re-derive):
+
+- Page load is the dominant fixed cost (~2.5–3 s per test) — prefer one
+  test that walks a flow over many tests that each reload for one assert,
+  when the assertions genuinely share state.
+- `driveTicks` sim spans are CHEAP (a 100-year n-body drive costs <1 s
+  over the page-load floor). Never shrink a physics span to save time —
+  it buys nothing and weakens the claim.
+- rAF settles are the real fat: SwiftShader frames run ~45–78 ms, so 60
+  frames ≈ 3–5 s. Size settles from what they must prove (e.g. a 0.2 s
+  camera time constant converges in ~24 frames), and wait on CONDITIONS
+  (`waitForFunction`, locator waits) wherever one exists.
+- Wall-clock `waitForTimeout` is only for proving a NEGATIVE against a
+  known timer (e.g. "the 600 ms auto-open must not fire") — bound it to
+  that timer plus margin, and cite the timer in a comment.
 
 ## Failure modes this harness exists to prevent
 
@@ -84,6 +112,25 @@ rediscover them:
 - **Tween-blur screenshots.** Camera fly-ins mid-screenshot make flaky
   pixel checks; `--force-prefers-reduced-motion` + `reducedMotion:
   'reduce'` are baked into the config so transitions land instantly.
+- **Plain `--use-angle=swiftshader` hangs Chrome's shutdown** (e2e-speed
+  lane, 2026-07-08). Whole-GPU-process SwiftShader stalls Chrome 149's
+  teardown for 10 s – 5 min+ after WebGL-heavy pages (the page is already
+  closed — it's GPU-process teardown, heavy-tailed). Playwright then
+  reports "worker process did not exit within 300000ms after stop,
+  force-killed it", which FAILS an otherwise-green run via
+  hasWorkerErrors. The e2e config uses `--use-angle=swiftshader-webgl`
+  (SwiftShader for WebGL contexts only): identical rendered pixels, zero
+  console errors, browser close ~65 ms. Keep plain `swiftshader` only for
+  one-shot `--screenshot` recipes (/headless-check, ci.yml smoke) where
+  the process is short-lived anyway.
+- **Per-frame animations vs wall-clock waits.** App fades that advance
+  per FRAME (e.g. orbitflow.js railsFade, +6% of the remainder each
+  frame ≈ 48 frames to 0.95) take wall-clock time proportional to frame
+  time — a timeout tuned solo will fire under parallel contention. Bound
+  such waits generously (they are waits, not assertions). Same trap in
+  reverse: reading regime chrome (clock text, HUD rects) immediately
+  after a mode's body class flips races the regime's first tick — wait
+  for the painted condition (non-empty text), not the class.
 
 ## Bar for a feature agent
 
